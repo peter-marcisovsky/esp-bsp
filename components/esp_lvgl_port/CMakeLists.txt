@@ -22,12 +22,21 @@ endif()
 
 set(PORT_PATH "src/${PORT_FOLDER}")
 
+# Include SIMD assembly source code for rendering
+if(CONFIG_IDF_TARGET_ESP32 OR CONFIG_IDF_TARGET_ESP32S3)
+    if (lvgl_ver VERSION_GREATER_EQUAL "9.0.0")
+        message(VERBOSE "Compiling SIMD")
+        file(GLOB_RECURSE ASM_SOURCES ${PORT_PATH}/simd/*.S)
+    endif()
+endif()
+
 idf_component_register(
-        SRCS "${PORT_PATH}/esp_lvgl_port.c" "${PORT_PATH}/esp_lvgl_port_disp.c" 
+        SRCS "${PORT_PATH}/esp_lvgl_port.c" "${PORT_PATH}/esp_lvgl_port_disp.c" ${ASM_SOURCES}
         INCLUDE_DIRS "include" 
         PRIV_INCLUDE_DIRS "priv_include"
         REQUIRES "esp_lcd" 
-        PRIV_REQUIRES "esp_timer")
+        PRIV_REQUIRES "esp_timer"
+        WHOLE_ARCHIVE)
 
 set(ADD_SRCS "")
 set(ADD_LIBS "")
