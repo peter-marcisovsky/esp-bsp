@@ -4,14 +4,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-// This is LVGL ARGB8888 simple fill for ESP32 processor.
-    .text
+// This is LVGL RGB565 simple fill for ESP32 processor
+
+    .section .text
     .align  4
-    .global lv_color_blend_to_argb8888_esp32_ae32
-    .global .lv_color_blend_to_argb8888_esp32_ae32_body
-    .type   lv_color_blend_to_argb8888_esp32_ae32,@function
+    .global lv_color_blend_to_rgb565_esp
+    .type   lv_color_blend_to_rgb565_esp,@function
 // The function implements the following C code:
-// void lv_color_blend_to_argb8888(_lv_draw_sw_blend_fill_dsc_t * dsc);
+// void lv_color_blend_to_rgb565(_lv_draw_sw_blend_fill_dsc_t * dsc);
 
 // Input params
 //
@@ -29,24 +29,41 @@
 //     uint32_t mask_stride;        l32i    32
 // } asm_dsc_t;
 
-lv_color_blend_to_argb8888_esp32_ae32:
+lv_color_blend_to_rgb565_esp:
 
     entry   a1,    32
 
     l32i.n   a3,    a2,    4                    // a3 - dest_buff
-    l32i.n   a4,    a2,    8                    // a4 - dest_w                in uint32_t
-    l32i.n   a5,    a2,    12                   // a5 - dest_h                in uint32_t
+    l32i.n   a4,    a2,    8                    // a4 - dest_w                in uint16_t
+    l32i.n   a5,    a2,    12                   // a5 - dest_h                in uint16_t
     l32i.n   a6,    a2,    16                   // a6 - dest_stride           in bytes
     l32i.n   a7,    a2,    20                   // a7 - src_buff (color)
     l32i.n   a8,    a7,    0                    // a8 - color as value
-    slli     a11,   a4,    2                    // a11 - dest_w_bytes = sizeof(uint32_t) * dest_w
+    slli     a11,   a4,    1                    // a11 - dest_w_bytes = sizeof(uint16_t) * dest_w
 
-    movi     a7,    0xff000000                  // oppactiy mask
-    or       a10,    a7,    a8                  // apply oppacity
+    // Convert color to rgb656
+    l8ui    a15,    a7,    2                    // red
+    movi.n  a14,    0xf8
+    and     a13,    a15,   a14
+    slli    a10,    a13,   8
 
-    .lv_color_blend_to_argb8888_esp32_ae32_body:
+    l8ui    a15,    a7,    0                    // blue
+    and     a13,    a15,   a14
+    srli    a12,    a13,   3
+    add     a10,    a10,   a12
 
-    srli    a9,    a4,   2                      // a9 - loop_len = dest_w / 4
+    l8ui    a15,    a7,    1                    // green
+    movi.n  a14,    0xfc
+    and     a13,    a15,   a14
+    slli    a12,    a13,   3
+    add     a12,    a10,   a12                  // a12 = 16-bit color
+
+    slli    a10,    a12,   16
+    movi.n  a13,    0xFFFF0000
+    and     a10,    a10,    a13
+    or      a10,    a10,    a12                 // a10 = 32-bit color (16bit + (16bit << 16))
+
+    srli    a9,    a4,   3                      // a9 - loop_len = dest_w / 8
     sub     a6,    a6,   a11                    // dest_stride = dest_stride - dest_w_bytes
 
     .outer_loop:
@@ -73,6 +90,12 @@ lv_color_blend_to_argb8888_esp32_ae32:
             s32i.n      a10,  a3,  0                    // save 32 bits from a10 to dest_buff a3, offset 0 bytes
             addi.n      a3,   a3,  4                    // increment dest_buff pointer by 4 bytes
         _mod_4_check:
+
+        // Check modulo 2 of the dest_w_bytes, if - then set 4 bytes
+        bbci a11, 1, _mod_2_check                       // branch if 1-st bit of dest_w_bytes is clear
+            s16i        a12,  a3,  0                    // save 16 bits from a12 to dest_buff a3, offset 0 bytes
+            addi.n      a3,   a3,  2                    // increment dest_buff pointer by 2 bytes
+        _mod_2_check:
 
         add     a3,  a3,  a6                             // dest_buff + dest_stride
         addi.n  a5,  a5,  -1                             // decrease the outer loop

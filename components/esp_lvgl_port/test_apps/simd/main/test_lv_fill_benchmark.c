@@ -55,20 +55,6 @@ static const benchmark_res_t benchmark_results_lut[] = {
 // ------------------------------------------------ Static function headers --------------------------------------------
 
 /**
- * @brief ARGB8888 benchmark test case entry
- *
- * - initialize the ARGB8888 benchmark test case
- */
-static void argb8888_benchmark(void);
-
-/**
- * @brief RGB565 benchmark test case entry
- *
- * - initialize the RGB565 benchmark test case
- */
-static void rgb565_benchmark(void);
-
-/**
  * @brief Initialize the benchmark test
  */
 static void lv_fill_benchmark_init(bench_test_params_t *test_params);
@@ -106,14 +92,9 @@ Procedure:
     - Free test array
     - Free structures needed for LVGL blending API
 */
-
-TEST_CASE_MULTIPLE_STAGES("LV Fill benchmark", "[lv_fill][benchmark]",
-                          argb8888_benchmark,
-                          rgb565_benchmark)
-
 // ------------------------------------------------ Test cases stages --------------------------------------------------
 
-static void argb8888_benchmark(void)
+TEST_CASE("LV Fill benchmark ARGB8888", "[lv_fill][benchmark][ARGB8888]")
 {
     uint32_t *dest_array_align16  = (uint32_t *)memalign(16, STRIDE * HEIGHT * sizeof(uint32_t) + (UNALIGN_BYTES * sizeof(uint8_t)));
     TEST_ASSERT_NOT_EQUAL(NULL, dest_array_align16);
@@ -141,7 +122,7 @@ static void argb8888_benchmark(void)
     free(dest_array_align16);
 }
 
-static void rgb565_benchmark(void)
+TEST_CASE("LV Fill benchmark RGB565", "[lv_fill][benchmark][RGB565]")
 {
     uint16_t *dest_array_align16  = (uint16_t *)memalign(16, STRIDE * HEIGHT * sizeof(uint16_t) + (UNALIGN_BYTES * sizeof(uint8_t)));
     TEST_ASSERT_NOT_EQUAL(NULL, dest_array_align16);

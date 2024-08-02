@@ -105,24 +105,14 @@ esp_err_t init_blend_params(void)
         return ESP_ERR_NO_MEM;
     }
 
-    lv_draw_sw_blend_dsc_t blend_dsc = {
-        .blend_area = &test_area->blend,
-        .src_buf = NULL,
-        .opa = LV_OPA_MAX,
-        .color = test_color_common,
-        .mask_buf = NULL,
-        .mask_res = LV_DRAW_SW_MASK_RES_FULL_COVER,
-        .mask_area = NULL,
-    };
-
     // Initialize draw buf data with NULL
     lv_draw_buf_t draw_buf = {
         .data = NULL,
     };
 
     // Fill allocated space with initialized struct
-    memcpy(draw_buf_ansi, &draw_buf, sizeof(lv_draw_buf_t));
-    memcpy(draw_buf_asm, &draw_buf, sizeof(lv_draw_buf_t));
+    *draw_buf_ansi = draw_buf;
+    *draw_buf_asm = draw_buf;
 
     // Initialize targe layer
     lv_layer_t target_layer = {
@@ -132,34 +122,37 @@ esp_err_t init_blend_params(void)
     };
 
     // Fill allocated space with initialized struct
-    memcpy(target_layer_ansi, &target_layer, sizeof(lv_layer_t));
-    memcpy(target_layer_asm, &target_layer, sizeof(lv_layer_t));
+    *target_layer_ansi = target_layer;
+    *target_layer_asm = target_layer;
 
     // Initialize draw buf with member with draws buf for ANSI and ASM
     target_layer_ansi->draw_buf = draw_buf_ansi;
     target_layer_asm->draw_buf = draw_buf_asm;
 
-    // Initialize draw unit
-    lv_draw_unit_t draw_unit_ansi = {
-        .target_layer = target_layer_ansi,
-        .clip_area = &test_area->clip,
-    };
-
-    lv_draw_unit_t draw_unit_asm = {
-        .target_layer = target_layer_asm,
-        .clip_area = &test_area->clip,
-    };
-
     // Initialize blend params struct
     blend_params_t blend_params_local = {
-        .blend_dsc = blend_dsc,
-        .draw_unit_ansi = draw_unit_ansi,
-        .draw_unit_asm = draw_unit_asm,
+        .blend_dsc = {
+            .blend_area = &test_area->blend,
+            .src_buf = NULL,
+            .opa = LV_OPA_MAX,
+            .color = test_color_common,
+            .mask_buf = NULL,
+            .mask_res = LV_DRAW_SW_MASK_RES_FULL_COVER,
+            .mask_area = NULL,
+        },
+        .draw_unit_ansi = {
+            .target_layer = target_layer_ansi,
+            .clip_area = &test_area->clip,
+        },
+        .draw_unit_asm = {
+            .target_layer = target_layer_asm,
+            .clip_area = &test_area->clip,
+        },
         .use_asm = &LV_BLEND_USE_ASM,
         .api_function = LVGL_API_NOT_SET,
     };
 
-    memcpy(blend_params, &blend_params_local, sizeof(blend_params_t));
+    *blend_params = blend_params_local;
     s_blend_params = blend_params;
     s_area = test_area;
 
@@ -169,27 +162,19 @@ esp_err_t init_blend_params(void)
 esp_err_t free_blend_params(void)
 {
     // Free area
-    if (s_area != NULL) {
-        free(s_area);
-    }
+    free(s_area);
 
     // Free blend params
     if (s_blend_params != NULL) {
         // Check target layer ansi
         if (s_blend_params->draw_unit_ansi.target_layer != NULL) {
-            // Check draw buf from target layer ansi
-            if (s_blend_params->draw_unit_ansi.target_layer->draw_buf != NULL) {
-                free(s_blend_params->draw_unit_ansi.target_layer->draw_buf);
-            }
+            free(s_blend_params->draw_unit_ansi.target_layer->draw_buf);
             free(s_blend_params->draw_unit_ansi.target_layer);
         }
 
         // Check target layer asm
         if (s_blend_params->draw_unit_asm.target_layer != NULL) {
-            // Check draw buf from target layer asm
-            if (s_blend_params->draw_unit_asm.target_layer->draw_buf != NULL) {
-                free(s_blend_params->draw_unit_asm.target_layer->draw_buf);
-            }
+            free(s_blend_params->draw_unit_asm.target_layer->draw_buf);
             free(s_blend_params->draw_unit_asm.target_layer);
         }
         free(s_blend_params);

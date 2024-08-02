@@ -4,11 +4,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-// This is LVGL RGB565 simple fill for ESP32 processor.
-    .text
+// TODO: ESP32S3 variant not implemented yet. esp32s3 is the same as esp32 for now
+
+// This is LVGL RGB565 simple fill for ESP32S3 processor
+
+    .section .text
     .align  4
-    .global lv_color_blend_to_rgb565_esp32_ae32
-    .type   lv_color_blend_to_rgb565_esp32_ae32,@function
+    .global lv_color_blend_to_rgb565_esp
+    .type   lv_color_blend_to_rgb565_esp,@function
 // The function implements the following C code:
 // void lv_color_blend_to_rgb565(_lv_draw_sw_blend_fill_dsc_t * dsc);
 
@@ -28,7 +31,7 @@
 //     uint32_t mask_stride;        l32i    32
 // } asm_dsc_t;
 
-lv_color_blend_to_rgb565_esp32_ae32:
+lv_color_blend_to_rgb565_esp:
 
     entry   a1,    32
 

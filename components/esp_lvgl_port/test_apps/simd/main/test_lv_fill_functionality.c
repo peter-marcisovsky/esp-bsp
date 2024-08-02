@@ -37,20 +37,6 @@ static char test_msg_buff[128];
 static void functionality_test_matrix(func_test_params_t *test_params);
 
 /**
- * @brief ARGB8888 functionality test case entry
- *
- * - initialize the ARGB8888 functionality test case
- */
-static void argb8888_functionality(void);
-
-/**
- * @brief RGB565 functionality test case entry
- *
- * - initialize the RGB565 functionality test case
- */
-static void rgb565_functionality(void);
-
-/**
  * @brief The actual LV Fill ARGB8888 functionality test
  */
 static void lv_fill_argb8888_functionality(int w, int h, int stride, int unalign_byte);
@@ -84,13 +70,9 @@ Procedure:
     - Free structures needed for LVGL blending API
 */
 
-TEST_CASE_MULTIPLE_STAGES("LV Fill functionality", "[lv_fill][functionality]",
-                          argb8888_functionality,
-                          rgb565_functionality)
-
 // ------------------------------------------------ Test cases stages --------------------------------------------------
 
-static void argb8888_functionality(void)
+TEST_CASE("Test fill functionality ARGB8888", "[fill][functionality][ARGB8888]")
 {
     func_test_params_t test_params = {
         .color_format = LV_COLOR_FORMAT_ARGB8888,
@@ -111,7 +93,7 @@ static void argb8888_functionality(void)
     functionality_test_matrix(&test_params);
 }
 
-static void rgb565_functionality(void)
+TEST_CASE("Test fill functionality RGB565", "[fill][functionality][RGB565]")
 {
     func_test_params_t test_params = {
         .color_format = LV_COLOR_FORMAT_RGB565,
