@@ -44,6 +44,14 @@ idf_component_register(
 set_property(TARGET ${COMPONENT_LIB} APPEND PROPERTY INTERFACE_LINK_LIBRARIES "-u lv_color_blend_to_argb8888_esp")
 set_property(TARGET ${COMPONENT_LIB} APPEND PROPERTY INTERFACE_LINK_LIBRARIES "-u lv_color_blend_to_rgb565_esp")
 
+#Get LVGL target 
+idf_component_get_property(lvgl_lib lvgl__lvgl COMPONENT_LIB)
+if(lvgl_lib EQUAL "")
+    idf_component_get_property(lvgl_lib lvgl COMPONENT_LIB)
+endif()
+
+target_include_directories(${lvgl_lib} PRIVATE include)
+
 set(ADD_SRCS "")
 set(ADD_LIBS "")
 
