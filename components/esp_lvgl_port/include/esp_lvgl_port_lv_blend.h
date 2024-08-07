@@ -13,10 +13,6 @@ extern "C" {
 /*********************
  *      INCLUDES
  *********************/
-#include "esp_log.h"
-#include <sdkconfig.h>
-#include "lvgl.h"
-#include "lv_conf_internal.h"
 
 #if !CONFIG_LV_DRAW_SW_ASM_CUSTOM
 #warning "esp_lvgl_port_lv_blend.h included, but CONFIG_LV_DRAW_SW_ASM_CUSTOM not set. Assembly rendering not used"
@@ -57,18 +53,10 @@ typedef struct {
  * GLOBAL PROTOTYPES
  **********************/
 
-// Extern variable to control switching between Assembly or C implementation, for testing purposes only
-extern bool LV_BLEND_USE_ASM;
-
 extern int lv_color_blend_to_argb8888_esp(asm_dsc_t *asm_dsc);
 
 static inline lv_result_t _lv_color_blend_to_argb8888_esp(_lv_draw_sw_blend_fill_dsc_t *dsc)
 {
-    // Check if asm variant should be used (Only for testing)
-    if (!LV_BLEND_USE_ASM) {
-        return LV_RESULT_INVALID;
-    }
-
     asm_dsc_t asm_dsc = {
         .dst_buf = dsc->dest_buf,
         .dst_w = dsc->dest_w,
@@ -84,11 +72,6 @@ extern int lv_color_blend_to_rgb565_esp(asm_dsc_t *asm_dsc);
 
 static inline lv_result_t _lv_color_blend_to_rgb565_esp(_lv_draw_sw_blend_fill_dsc_t *dsc)
 {
-    // Check if asm variant should be used (Only for testing)
-    if (!LV_BLEND_USE_ASM) {
-        return LV_RESULT_INVALID;
-    }
-
     asm_dsc_t asm_dsc = {
         .dst_buf = dsc->dest_buf,
         .dst_w = dsc->dest_w,

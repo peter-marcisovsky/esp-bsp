@@ -7,7 +7,6 @@
 #include <stdio.h>
 #include "unity.h"
 #include "unity_test_utils.h"
-#include "lvgl.h"
 #include "lv_fill_common.h"
 
 #define TEST_MEMORY_LEAK_THRESHOLD (800)
@@ -41,21 +40,11 @@ void setUp(void)
     // Check for memory leaks
     unity_utils_set_leak_level(TEST_MEMORY_LEAK_THRESHOLD);
     unity_utils_record_free_mem();
-
-    // Init LVGL
-    lv_init();
-
-    // Init structure for testing
-    TEST_ASSERT_EQUAL(ESP_OK, init_blend_params());
-
 }
 
 /* tearDown runs after every test */
 void tearDown(void)
 {
-    // Free structures for testing
-    TEST_ASSERT_EQUAL(ESP_OK, free_blend_params());
-
     // Evaluate memory leaks
     unity_utils_evaluate_leaks();
 }

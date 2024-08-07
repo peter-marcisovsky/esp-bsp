@@ -3,4 +3,4 @@ dependencies:
   idf: ">=4.4"
   esp_lvgl_port:
     version: "*"
-    override_path: "../../../"
+    override_path: "../../../../"
