@@ -32,6 +32,7 @@
  *********************/
 
 #define LV_ATTRIBUTE_FAST_MEM
+#define DBG_PRINT_OUTPUT false
 
 /**********************
  *      TYPEDEFS
@@ -179,6 +180,8 @@ static inline void * /* LV_ATTRIBUTE_FAST_MEM */ drawbuf_next_row(const void *bu
  *   GLOBAL FUNCTIONS
  **********************/
 
+#include <stdio.h>
+
 void LV_ATTRIBUTE_FAST_MEM lv_draw_sw_blend_color_to_argb8888(_lv_draw_sw_blend_fill_dsc_t *dsc)
 {
     int32_t w = dsc->dest_w;
@@ -205,6 +208,7 @@ void LV_ATTRIBUTE_FAST_MEM lv_draw_sw_blend_color_to_argb8888(_lv_draw_sw_blend_
 
     /*Simple fill*/
     if (mask == NULL && opa >= LV_OPA_MAX) {
+        printf("Simple Fill, OPA = %d\n", opa);
         if (dsc->use_asm) {
             LV_DRAW_SW_COLOR_BLEND_TO_ARGB8888(dsc);
         } else {
@@ -243,7 +247,10 @@ void LV_ATTRIBUTE_FAST_MEM lv_draw_sw_blend_color_to_argb8888(_lv_draw_sw_blend_
     }
     /*Opacity only*/
     else if (mask == NULL && opa < LV_OPA_MAX) {
-        if (LV_RESULT_INVALID == LV_DRAW_SW_COLOR_BLEND_TO_ARGB8888_WITH_OPA(dsc)) {
+        //printf("OPA only, OPA = %d\n", opa);
+        if (dsc->use_asm) {
+            LV_DRAW_SW_COLOR_BLEND_TO_ARGB8888_WITH_OPA(dsc);
+        } else {
             lv_color32_t color_argb = lv_color_to_32(dsc->color, opa);
             lv_color32_t *dest_buf = dsc->dest_buf;
 
@@ -258,6 +265,7 @@ void LV_ATTRIBUTE_FAST_MEM lv_draw_sw_blend_color_to_argb8888(_lv_draw_sw_blend_
     }
     /*Masked with full opacity*/
     else if (mask && opa >= LV_OPA_MAX) {
+        printf("Masked with full OPA\n");
         if (LV_RESULT_INVALID == LV_DRAW_SW_COLOR_BLEND_TO_ARGB8888_WITH_MASK(dsc)) {
             lv_color32_t color_argb = lv_color_to_32(dsc->color, 0xff);
             lv_color32_t *dest_buf = dsc->dest_buf;
@@ -275,6 +283,7 @@ void LV_ATTRIBUTE_FAST_MEM lv_draw_sw_blend_color_to_argb8888(_lv_draw_sw_blend_
     }
     /*Masked with opacity*/
     else {
+        printf("Masked with OPA\n");
         if (LV_RESULT_INVALID == LV_DRAW_SW_COLOR_BLEND_TO_ARGB8888_MIX_MASK_OPA(dsc)) {
             lv_color32_t color_argb = lv_color_to_32(dsc->color, opa);
             lv_color32_t *dest_buf = dsc->dest_buf;
@@ -833,30 +842,54 @@ static inline lv_color32_t LV_ATTRIBUTE_FAST_MEM lv_color_32_32_mix(lv_color32_t
 {
     /*Pick the foreground if it's fully opaque or the Background is fully transparent*/
     if (fg.alpha >= LV_OPA_MAX || bg.alpha <= LV_OPA_MIN) {
+#if DBG_PRINT_OUTPUT
+        printf("lv_color_mix_1\n");
+#endif
         return fg;
     }
     /*Transparent foreground: use the Background*/
     else if (fg.alpha <= LV_OPA_MIN) {
+#if DBG_PRINT_OUTPUT
+        printf("lv_color_mix_2\n");
+#endif
         return bg;
     }
     /*Opaque background: use simple mix*/
     else if (bg.alpha == 255) {
+#if DBG_PRINT_OUTPUT
+        printf("lv_color_mix_3\n");
+#endif
         return lv_color_mix32(fg, bg);
     }
     /*Both colors have alpha. Expensive calculation need to be applied*/
     else {
+#if DBG_PRINT_OUTPUT
+        printf("lv_color_mix_4\n");
+#endif
         /*Save the parameters and the result. If they will be asked again don't compute again*/
 
         /*Update the ratio and the result alpha value if the input alpha values change*/
         if (bg.alpha != cache->bg_saved.alpha || fg.alpha != cache->fg_saved.alpha) {
+#if DBG_PRINT_OUTPUT
+            printf("lv_color_mix_4_1\n");
+            printf("fg.alpha = %d\nbg.alpha = %d\n", fg.alpha, bg.alpha);
+#endif
             /*Info:
              * https://en.wikipedia.org/wiki/Alpha_compositing#Analytical_derivation_of_the_over_operator*/
             cache->res_alpha_saved  = 255 - LV_OPA_MIX2(255 - fg.alpha, 255 - bg.alpha);
             LV_ASSERT(cache->res_alpha_saved != 0);
             cache->ratio_saved = (uint32_t)((uint32_t)fg.alpha * 255) / cache->res_alpha_saved;
+
+#if DBG_PRINT_OUTPUT
+            printf("cache->res_alpha_saved = %d\n", cache->res_alpha_saved);
+            printf("cache->ratio_saved = %d\n", cache->ratio_saved);
+#endif
         }
 
         if (!lv_color32_eq(bg, cache->bg_saved) || !lv_color32_eq(fg, cache->fg_saved)) {
+#if DBG_PRINT_OUTPUT
+            printf("lv_color_mix_4_2\n");
+#endif
             cache->fg_saved = fg;
             cache->bg_saved = bg;
             fg.alpha = cache->ratio_saved;

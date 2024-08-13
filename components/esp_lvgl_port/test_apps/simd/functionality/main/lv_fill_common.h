@@ -17,6 +17,11 @@ extern "C" {
 
 // ------------------------------------------------- Macros and Types --------------------------------------------------
 
+typedef enum {
+    OPERATION_FILL,
+    OPERATION_FILL_WITH_OPA,
+} blend_operation_t;
+
 /**
  * @brief Functionality test combinations
  */
@@ -29,6 +34,10 @@ typedef struct {
     unsigned int max_unalign_byte;          // Maximum amount of unaligned bytes of the test array
     unsigned int unalign_step;              // Increment step in bytes unalignment of the test array
     unsigned int dest_stride_step;          // Increment step in destination stride of the test array
+    lv_opa_t min_bg_opa;                    // Minimum background opacity
+    lv_opa_t min_fg_opa;                    // Minimum foreground opacity
+    unsigned int bg_opa_step_percent;       // Increment step for background opacity in %
+    unsigned int fg_opa_step_percent;       // Increment step for foreground opacity in %
     unsigned int test_combinations_count;   // Count of fest combinations
 } test_matrix_params_t;
 
@@ -51,6 +60,10 @@ typedef struct {
     unsigned int dest_h;                                    // Destination buffer height
     unsigned int dest_stride;                               // Destination buffer stride
     unsigned int unalign_byte;                              // Destination buffer memory unalignment
+    lv_opa_t bg_opa;                                        // Background opacity
+    lv_opa_t fg_opa;                                        // Foreground opacity
+    blend_operation_t operation_type;                       // Type of fundamental blend operation
+    unsigned int test_combinations_count;   // Count of fest combinations
 } test_case_params_t;
 
 #ifdef __cplusplus
