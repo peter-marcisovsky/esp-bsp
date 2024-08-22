@@ -31,6 +31,9 @@ if(CONFIG_IDF_TARGET_ESP32 OR CONFIG_IDF_TARGET_ESP32S3)
         else()
             file(GLOB_RECURSE ASM_SOURCES ${PORT_PATH}/simd/*_esp32.S)      # Select only esp32 related files
         endif()
+
+        file(GLOB_RECURSE MACROS ${PORT_PATH}/simd/*_macro.S)
+        list(APPEND ASM_SOURCES ${MACROS})
     endif()
 endif()
 

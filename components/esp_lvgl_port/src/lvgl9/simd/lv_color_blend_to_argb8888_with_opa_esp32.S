@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+#include "lv_color_mix32_macro.S"
 // This is LVGL ARGB8888 simple fill for ESP32 processor
 
     .section .text
@@ -49,6 +50,7 @@ lv_color_blend_to_argb8888_with_opa_esp:
     sub      a6,    a6,    a11                  // dest_stride = dest_stride - dest_w_bytes
 
     // cache init
+    s32i.n   a6,     a1,   20                   // Save stride
     movi.n   a12,    0
     s32i.n   a12,    a1,   0                    // cache.FG
     s32i.n   a12,    a1,   4                    // cache.BG
@@ -56,22 +58,23 @@ lv_color_blend_to_argb8888_with_opa_esp:
     movi     a12,    255
     s32i.n   a12,    a1,   12                   // cache.res_alpha
     s32i.n   a12,    a1,   16                   // cache.ratio
+    movi     a6,     253                        // a6 = 253 = LV_OPA_MAX
 
     .outer_loop:
 
         loopnez a4, ._main_loop
 
-            l32i.n      a15,   a3,   0              // load BG value from dest buffer
-            addi        a12,   a9,   3              // Add 3 to the FG oppacity be able to compare the the FG OPA with the immediate value 256
-            extui       a13,   a15,  24,   8        // a13 = BG OPA, extract BG OPA from background
+            l32i.n      a15,   a3,   0                // load BG value from dest buffer
 
-            // Branch if FG OPA + 3 (a12) lower than 256
-            bltui       a12,  256,   _save_fg_if_fg_aplha                                   // if (fg.alpha >= LV_OPA_MAX) {
+            // Branch if FG OPA (a9) lower than a6: 253 (LV_OPA_MAX)
+            bltu         a9,   a6,   _save_fg_if_fg_aplha                                   // if (fg.alpha >= LV_OPA_MAX) {
                 s32i.n      a10,  a3,  0            // Save FG (a10) to the dest buff       //   return fg;
                 j           _end_of_loop            // Jump to the end of the loop          // }
             _save_fg_if_fg_aplha:
 
-            // Branch if BG OPA (a13) is greater than or equal to 3
+            extui       a13,   a15,  24,   8        // a13 = BG OPA, extract BG OPA from background
+
+            // Branch if BG OPA (a13) is greater than or equal to 3 (LV_OPA_MIN + 1)
             bgeui        a13,  3,  _save_fg_if_bg_alpha                                     // if (bg.alpha <= LV_OPA_MIN) {
                 s32i.n      a10,  a3,  0            // Save FG (a10) to the dest buff       //   return fg;
                 j          _end_of_loop             // Jump to the end of the loop          // }
@@ -89,8 +92,8 @@ lv_color_blend_to_argb8888_with_opa_esp:
                                                                                             //   return lv_color_mix32(fg, bg);
                                                                                             // }
 
-                // Branch if FG OPA + 3 (a12) lower than 256                                // if (fg.alpha >= LV_OPA_MAX) {
-                bltui       a12,  256,   _save_fg_if_fg_aplha_in_mix                        //   fg.alpha = bg.alpha;
+                // Branch if FG OPA (a9) lower than a6: 253 (LV_OPA_MAX)                    // if (fg.alpha >= LV_OPA_MAX) {
+                bltu        a9,   a6,   _save_fg_if_fg_aplha_in_mix                         //   fg.alpha = bg.alpha;
                     // FG OPA = BG OPA, return FG                                           //   return fg;
                     slli       a14,  a13,  24       // a14 = BG OPA << 24                   // }
                     and        a12,  a10,  a14      // FG.OPA = BG.OPA
@@ -104,39 +107,12 @@ lv_color_blend_to_argb8888_with_opa_esp:
                     j          _end_of_loop         // Jump to the end of the loop
                 _save_bg_if_fg_aplha_in_mix:
 
-                // Simple mix
-
-                // Extract alpha and prepare constants
-                movi     a14,  255
-                sub      a8,   a14,   a9            // a8 = 255 - FG OPA
-
-                // Mix Red channel
-                extui    a14,   a10,   16,   8      // a14 = fg.red
-                extui    a12,   a15,   16,   8      // a12 = bg.red
-                mul16u   a14,   a14,   a9           // fg.red * fg.alpha
-                mul16u   a12,   a12,   a8           // bg.red * (255 - fg.alpha)
-                add      a14,   a14,   a12          // a14 = fg.red * fg.alpha + bg.red * (255 - fg.alpha)
-                srli     a14,   a14,   8            // Normalize: a14 = a14 >> 8
-                slli     a7,    a14,   16           // Shift red to correct place
-
-                // Mix Green channel
-                extui    a14,   a10,   8,   8       // a14 = fg.green
-                extui    a12,   a15,   8,   8       // a12 = bg.green
-                mul16u   a14,   a14,   a9           // fg.green * fg.alpha
-                mul16u   a12,   a12,   a8           // bg.green * (255 - fg.alpha)
-                add      a14,   a14,   a12          // a14 = fg.green * fg.alpha + bg.green * (255 - fg.alpha)
-                srli     a14,   a14,   8            // Normalize: a14 = a14 >> 8
-                slli     a14,   a14,   8            // Shift red to correct place
-                or       a7,    a14,   a7           // Combine red and green to a7
-
-                // Mix Blue channel
-                extui    a14,   a10,   0,   8       // a14 = fg.blue
-                extui    a12,   a15,   0,   8       // a12 = bg.blue
-                mul16u   a14,   a14,   a9           // fg.blue * fg.alpha
-                mul16u   a12,   a12,   a8           // bg.blue * (255 - fg.alpha)
-                add      a14,   a14,   a12          // a14 = fg.blue * fg.alpha + bg.blue * (255 - fg.alpha)
-                srli     a14,   a14,   8            // Normalize: a14 = a14 >> 8
-                or       a7,    a14,   a7           // Combine all colors to a7
+                // a10 - FG
+                // a15 - BG
+                // a9  - FG OPA
+                // a7  - mixed color
+                // a8, a12, a14 - working regs
+                color_mix32 a10, a15, a9, a14, a8, a12, a7
 
                 // Compose the final color
                 slli     a14,   a13,   24           // a14 = BG OPA << 24
@@ -146,10 +122,11 @@ lv_color_blend_to_argb8888_with_opa_esp:
 
         _mix_bg_fg:
 
-        l8ui       a12,   a1,   7                   // a12 = load cache.BG
+        l8ui       a12,   a1,   7                   // a12 = load BG OPA from cache.BG
+        l8ui       a7,    a1,   3                   // a7 =  load FG OPA from cache.FG
+
         // Branch if BG OPA (a13) and cache.BG OPA (a12) are not equal
         bne        a13,   a12,  _OPA_cache_not_equal
-        l8ui       a7,    a1,   3                   // a7 = load cache.FG
         // Branch if FG OPA (a9) and cahge.FG OPA (a7) are not equal
         bne        a9,    a7,   _OPA_cache_not_equal
         j _OPA_cache_equal
@@ -161,31 +138,31 @@ lv_color_blend_to_argb8888_with_opa_esp:
             mul16u   a11,   a11,   a12              // a11 = (255 - FG OPA) * (255 - BG OPA)
             srli     a11,   a11,   8                // a11 = a11 >> 8
             sub      a11,   a14,   a11              // a11 = 255 - a11
-            s32i.n   a11,   a1,    12               // a11 = save to cache.res_alpha
 
             mul16u   a12,   a14,   a9               // a12 = 255 * FG OPA
             quou     a14,   a12,   a11              // a14 = a12 / a11
-            s32i.n   a14,   a1,    16               // a14 = save to cache.ratio_saved
+
+            s32i.n   a11,   a1,    12               // a11 = save to cache.res_alpha
+            s32i.n   a14,   a1,    16               // a14 = save to cache.ratio
 
         _OPA_cache_equal:
 
         l32i.n    a11,   a1,   0                    // a11 = load cache.FG
+        l32i.n    a12,   a1,   4                    // a12 = load cache.BG
 
         // branch if FG (a10) and cache.FG (a11) are not equal
         bne       a10,   a11,   _cache_not_equal
-        l32i.n    a12,   a1,    4                   // a12 = load cache.BG
         // branch if BG (a15) and cache.BG (a12) are not equal
         bne       a15,   a12,   _cache_not_equal
         j _cahe_equal
 
             _cache_not_equal:
-            l32i.n    a9,    a1,   16               // a9 = load from cache.ratio_saved (load FG OPA)
+            l32i.n    a9,    a1,   16               // a9 = load from cache.ratio (load FG OPA)
             s32i.n    a10,   a1,   0                // a10 = save to cache.FG
-            addi      a12,   a9,   3                // Add 3 to the FG oppacity be able to compare the the FG OPA with the immediate value 256
             s32i.n    a15,   a1,   4                // a15 = save to cache.BG
 
-            // Branch if FG OPA + 3 (a12) lower than 256                                    // if (fg.alpha >= LV_OPA_MAX) {
-            bltui       a12,  256,   _save_fg_if_fg_aplha_in_mix_1                          //   fg.alpha = bg.alpha;
+            // Branch if FG OPA (a9) lower than a6: 253 (LV_OPA_MAX)                        // if (fg.alpha >= LV_OPA_MAX) {
+            bltu        a9,  a6,   _save_fg_if_fg_aplha_in_mix_1                            //   fg.alpha = bg.alpha;
                 // FG OPA = BG OPA, return FG                                               //   return fg
                 l32i.n     a14,   a1,    12         // a14 = load cache.res_alpha           // }
                 slli       a14,   a14,   24         // a14 = res alpha saved << 24
@@ -200,7 +177,7 @@ lv_color_blend_to_argb8888_with_opa_esp:
             _save_fg_if_fg_aplha_in_mix_1:
 
             // Branch if FG OPA (a9) is greater than or equal to 3                          // if (fg.alpha <= LV_OPA_MIN) {
-            bgeui        a9,  3, _save_bg_if_fg_aplha_in_mix_1                              // return bg;
+            bgeui        a9,  3, _save_bg_if_fg_aplha_in_mix_1                              //   return bg;
                 l32i.n     a14,   a1,    12         // a14 = load cache.res_alpha           // }
                 slli       a14,   a14,   24         // a14 = res alpha saved << 24
                 movi       a12,   0x00ffffff        // a12 = Opa mask
@@ -213,49 +190,21 @@ lv_color_blend_to_argb8888_with_opa_esp:
                 j          _end_of_loop             // Jump to the end of the loop
             _save_bg_if_fg_aplha_in_mix_1:
 
-            // Simple mix
-
-            // Extract alpha and prepare constants
-            movi     a14,   255
-            l32i.n   a13,   a1,    12               // a13 = load cahe.res_alpha (load BG OPA)
-            sub      a8,    a14,   a9               // a8 = 255 - FG OPA
-
-            // Mix Red channel
-            extui    a14,   a10,   16,   8          // a14 = fg.red
-            extui    a12,   a15,   16,   8          // a12 = bg.red
-            mul16u   a14,   a14,   a9               // fg.red * fg.alpha
-            mul16u   a12,   a12,   a8               // bg.red * (255 - fg.alpha)
-            add      a14,   a14,   a12              // a14 = fg.red * fg.alpha + bg.red * (255 - fg.alpha)
-            srli     a14,   a14,   8                // Normalize: a14 = a14 >> 8
-            slli     a7,    a14,   16               // Shift red to correct place
-
-            // Mix Green channel
-            extui    a14,   a10,   8,   8           // a14 = fg.green
-            extui    a12,   a15,   8,   8           // a12 = bg.green
-            mul16u   a14,   a14,   a9               // fg.green * fg.alpha
-            mul16u   a12,   a12,   a8               // bg.green * (255 - fg.alpha)
-            add      a14,   a14,   a12              // a14 = fg.green * fg.alpha + bg.green * (255 - fg.alpha)
-            srli     a14,   a14,   8                // Normalize: a14 = a14 >> 8
-            slli     a14,   a14,   8                // Shift red to correct place
-            or       a7,    a14,   a7               // Combine red and green to a7
-
-            // Mix Blue channel
-            extui    a14,   a10,   0,   8           // a14 = fg.blue
-            extui    a12,   a15,   0,   8           // a12 = bg.blue
-            mul16u   a14,   a14,   a9               // fg.blue * fg.alpha
-            mul16u   a12,   a12,   a8               // bg.blue * (255 - fg.alpha)
-            add      a14,   a14,   a12              // a14 = fg.blue * fg.alpha + bg.blue * (255 - fg.alpha)
-            srli     a14,   a14,   8                // Normalize: a14 = a14 >> 8
-            or       a7,    a14,   a7               // Combine all colors to a7
+            // a10 - FG
+            // a15 - BG
+            // a9  - FG OPA
+            // a7  - mixed color
+            // a8, a12, a14 - working regs
+            color_mix32 a10, a15, a9, a14, a8, a12, a7
 
             l32i.n   a14,   a1,    12               // a14 = load cache.res_alpha
             slli     a14,   a14,   24               // a14 = res alpha saved << 24
 
             // Compose the final color
-            or       a7,    a14,   a7               // a7  = BG OPA << 24 OR RGB chanels
-            s32i.n   a7,    a3,    0                // Save background to the dest buff
+            or       a8,    a14,   a7               // a8  = BG OPA << 24 OR RGB chanels
             l8ui     a9,    a2,    0                // a9 - load back the original FG opacity
-            s32i.n   a7,    a1,    8                // a7 = save to cache.res
+            s32i.n   a8,    a3,    0                // Save background (a8) to the dest buff
+            s32i.n   a8,    a1,    8                // a8 = save to cache.res
             j        _end_of_loop                   // Jump to the end of the loop
 
         _cahe_equal:
@@ -269,7 +218,8 @@ lv_color_blend_to_argb8888_with_opa_esp:
 
         ._main_loop:
 
-        add     a3,  a3,  a6                        // dest_buff + dest_stride
+        l32i.n  a7,  a1,  20                        // a7 = load dest_stride from cache
+        add     a3,  a3,  a7                        // dest_buff + dest_stride
         addi.n  a5,  a5,  -1                        // decrease the outer loop
 
     bnez a5, .outer_loop
