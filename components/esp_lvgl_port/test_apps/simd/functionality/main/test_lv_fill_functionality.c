@@ -21,7 +21,7 @@
 
 // ------------------------------------------------- Macros and Types --------------------------------------------------
 
-#define UPDATE_TEST_CASE(test_case_ptr, dest_w, dest_h, dest_stride, unalign_byte, bg_opa, fg_opa, test_count) ({  \
+#define UPDATE_TEST_CASE(test_case_ptr, dest_w, dest_h, dest_stride, unalign_byte, bg_opa, fg_opa) ({  \
     (test_case_ptr)->active_buf_len = (size_t)(dest_h * dest_stride);                       \
     (test_case_ptr)->total_buf_len = (size_t)((dest_h * dest_stride) + (CANARY_BYTES * 2)); \
     (test_case_ptr)->dest_w = (dest_w);             \
@@ -30,17 +30,24 @@
     (test_case_ptr)->unalign_byte = (unalign_byte); \
     (test_case_ptr)->bg_opa = (bg_opa);             \
     (test_case_ptr)->fg_opa = (fg_opa);             \
-    (test_case_ptr)->test_combinations_count = test_count; \
+})
+
+// Update opacity step during the test
+// Step finely through the corner cases (around minimal and maximal OPA)
+// Step coarsely through the middle OPA values
+#define UPDATE_OPA_STEP(opa_step_updated, opa_step, opa, opa_min, opa_max) ({ \
+    if ((opa > opa_min + 5) && (opa <= opa_max - 10)) {   \
+        opa_step_updated = 20;                              \
+    } else {                                                \
+        opa_step_updated = opa_step;                        \
+    }                                                       \
 })
 
 static const char *TAG_LV_FILL_FUNC = "LV Fill Functionality";
 static char test_msg_buf[128];
 
-static lv_color_t test_color = {
-    .blue = 0x56,
-    .green = 0x34,
-    .red = 0x12,
-};
+static lv_color_t fg_color = { .blue = 0x56, .green = 0x34, .red = 0x12, };
+static lv_color_t bg_color = { .blue = 0xEF, .green = 0xCD, .red = 0xAB, };
 
 // ------------------------------------------------ Static function headers --------------------------------------------
 
@@ -113,8 +120,8 @@ TEST_CASE("Test fill functionality ARGB8888", "[fill][functionality][ARGB8888]")
         .max_unalign_byte = 16,
         .unalign_step = 1,
         .dest_stride_step = 1,
-        .min_bg_opa = LV_OPA_100,       // Do not step background opacity, set to max opacity
-        .min_fg_opa = LV_OPA_100,       // Do not step foreground opacity, set to max opacity
+        .bg_opa = {.min = LV_OPA_100, .max = LV_OPA_100},  // Do not step background opacity, set to max opacity
+        .fg_opa = {.min = LV_OPA_100, .max = LV_OPA_100},  // Do not step foreground opacity, set to max opacity
         .test_combinations_count = 0,
     };
 
@@ -131,31 +138,55 @@ TEST_CASE("Test fill functionality ARGB8888", "[fill][functionality][ARGB8888]")
 
 TEST_CASE("Test fill functionality with OPA ARGB8888", "[fill][opa][functionality][ARGB8888]")
 {
-    test_matrix_params_t test_matrix = {
+    test_matrix_params_t test_matrix_static_bg_opa = {
         .min_w = 8,
         .min_h = 1,
-        .max_w = 16,
-        .max_h = 16,
+        .max_w = 10,
+        .max_h = 2,
         .min_unalign_byte = 0,
-        .max_unalign_byte = 0,
+        .max_unalign_byte = 2,
         .unalign_step = 1,
-        .dest_stride_step = 1,
-        .min_bg_opa = 0,
-        .min_fg_opa = 0,
-        .bg_opa_step_percent = 1,
-        .fg_opa_step_percent = 1,
+        .dest_stride_step = 2,
+        .bg_opa = {.min = LV_OPA_0, .max = LV_OPA_100,     .step = 1},     // Step background opacity in full range
+        .fg_opa = {.min = LV_OPA_0, .max = LV_OPA_MAX - 1, .step = 1},     // Step foreground opacity in range 0 <= OPA < LV_OPA_MAX
         .test_combinations_count = 0,
     };
 
-    test_case_params_t test_case = {
+    test_case_params_t test_case_static_bg_opa = {
         .blend_api_func = &lv_draw_sw_blend_color_to_argb8888,
         .color_format = LV_COLOR_FORMAT_ARGB8888,
         .data_type_size = sizeof(uint32_t),
         .operation_type = OPERATION_FILL_WITH_OPA,
+        .static_bg_opa = true,
     };
 
-    ESP_LOGI(TAG_LV_FILL_FUNC, "running test for ARGB8888 color format");
-    functionality_test_matrix(&test_matrix, &test_case);
+    ESP_LOGI(TAG_LV_FILL_FUNC, "running test for ARGB8888 color format with static background opacity");
+    functionality_test_matrix(&test_matrix_static_bg_opa, &test_case_static_bg_opa);
+
+    test_matrix_params_t test_matrix_dynamic_bg_opa = {
+        .min_w = 512,
+        .min_h = 1,
+        .max_w = 512,
+        .max_h = 2,
+        .min_unalign_byte = 0,
+        .max_unalign_byte = 1,
+        .unalign_step = 1,
+        .dest_stride_step = 256,
+        .bg_opa = {.min = LV_OPA_100, .max = LV_OPA_100},                  // Do not step background opacity, set to max opacity
+        .fg_opa = {.min = LV_OPA_0,   .max = LV_OPA_MAX - 1, .step = 1},   // Step foreground opacity in range 0 <= OPA < LV_OPA_MAX
+        .test_combinations_count = 0,
+    };
+
+    test_case_params_t test_case_dynamic_bg_opa = {
+        .blend_api_func = &lv_draw_sw_blend_color_to_argb8888,
+        .color_format = LV_COLOR_FORMAT_ARGB8888,
+        .data_type_size = sizeof(uint32_t),
+        .operation_type = OPERATION_FILL_WITH_OPA,
+        .static_bg_opa = false,
+    };
+
+    ESP_LOGI(TAG_LV_FILL_FUNC, "running test for ARGB8888 color format with dynamic background opacity");
+    functionality_test_matrix(&test_matrix_dynamic_bg_opa, &test_case_dynamic_bg_opa);
 }
 
 TEST_CASE("Test fill functionality RGB565", "[fill][functionality][RGB565]")
@@ -169,8 +200,8 @@ TEST_CASE("Test fill functionality RGB565", "[fill][functionality][RGB565]")
         .max_unalign_byte = 16,
         .unalign_step = 1,
         .dest_stride_step = 1,
-        .min_bg_opa = LV_OPA_100,      // Do not step background opacity, set to max opacity
-        .min_fg_opa = LV_OPA_100,      // Do not step foreground opacity, set to max opacity
+        .bg_opa = {.min = LV_OPA_100, .max = LV_OPA_100},  // Do not step background opacity, set to max opacity
+        .fg_opa = {.min = LV_OPA_100, .max = LV_OPA_100},  // Do not step foreground opacity, set to max opacity
         .test_combinations_count = 0,
     };
 
@@ -189,6 +220,17 @@ TEST_CASE("Test fill functionality RGB565", "[fill][functionality][RGB565]")
 
 static void functionality_test_matrix(test_matrix_params_t *test_matrix, test_case_params_t *test_case)
 {
+    // Avoid infinite loop
+    if (!test_matrix->bg_opa.step) {
+        test_matrix->bg_opa.step = 1;
+    }
+    if (!test_matrix->fg_opa.step) {
+        test_matrix->fg_opa.step = 1;
+    }
+
+    int bg_opa_step = test_matrix->bg_opa.step;
+    int fg_opa_step = test_matrix->fg_opa.step;
+
     // Step destination array width
     for (int dest_w = test_matrix->min_w; dest_w <= test_matrix->max_w; dest_w++) {
 
@@ -196,27 +238,21 @@ static void functionality_test_matrix(test_matrix_params_t *test_matrix, test_ca
         for (int dest_h = test_matrix->min_h; dest_h <= test_matrix->max_h; dest_h++) {
 
             // Step destination array stride
-            for (int dest_stride = dest_w; dest_stride <= dest_w; dest_stride += test_matrix->dest_stride_step) {
+            for (int dest_stride = dest_w; dest_stride <= dest_w * 2; dest_stride += test_matrix->dest_stride_step) {
 
                 // Step destination array unalignment
                 for (int unalign_byte = test_matrix->min_unalign_byte; unalign_byte <= test_matrix->max_unalign_byte; unalign_byte += test_matrix->unalign_step) {
 
                     // Step background opacity in percents
-                    for (int bg_opa = test_matrix->min_bg_opa; bg_opa < LV_OPA_MAX; bg_opa += test_matrix->bg_opa_step_percent) {
+                    for (int bg_opa = test_matrix->bg_opa.min; bg_opa <= test_matrix->bg_opa.max; bg_opa += bg_opa_step) {
+                        UPDATE_OPA_STEP(bg_opa_step, test_matrix->bg_opa.step, bg_opa, test_matrix->bg_opa.min, test_matrix->bg_opa.max);
 
                         // Step foreground opacity in percents
-                        for (int fg_opa = test_matrix->min_fg_opa; fg_opa < LV_OPA_MAX; fg_opa += test_matrix->fg_opa_step_percent) {
+                        for (int fg_opa = test_matrix->fg_opa.min; fg_opa <= test_matrix->fg_opa.max; fg_opa += fg_opa_step) {
+                            UPDATE_OPA_STEP(fg_opa_step, test_matrix->fg_opa.step, fg_opa, test_matrix->fg_opa.min, test_matrix->fg_opa.max);
 
-#if DBG_PRINT_OUTPUT
-                            printf("BG OPA = %d   %x\n", bg_opa, bg_opa);
-                            printf("FG OPA = %d   %x\n", fg_opa, fg_opa);
-#endif
-
-                            //printf("Test case: dest_w = %d, dest_h = %d, dest_stride = %d, unalign_byte = %d, bg_opa = %d, fg_opa = %d\n", dest_w, dest_h, dest_stride, test_case->unalign_byte, test_case->bg_opa, test_case->fg_opa);
                             // Call functionality test
-                            int test_count = test_matrix->test_combinations_count;
-                            //printf("%d\n", test_count);
-                            UPDATE_TEST_CASE(test_case, dest_w, dest_h, dest_stride, unalign_byte, bg_opa, fg_opa, test_count);
+                            UPDATE_TEST_CASE(test_case, dest_w, dest_h, dest_stride, unalign_byte, bg_opa, fg_opa);
                             lv_fill_functionality(test_case);
                             test_matrix->test_combinations_count++;
                         }
@@ -239,7 +275,7 @@ static void lv_fill_functionality(test_case_params_t *test_case)
         .dest_h = test_case->dest_h,
         .dest_stride = test_case->dest_stride * test_case->data_type_size,  // stride * sizeof()
         .mask_buf = NULL,
-        .color = test_color,
+        .color = fg_color,
         .opa = test_case->fg_opa,
         .use_asm = true,
     };
@@ -257,21 +293,19 @@ static void lv_fill_functionality(test_case_params_t *test_case)
     test_case->buf.p_ansi -= CANARY_BYTES * test_case->data_type_size;
 
     // Evaluate the results
-    sprintf(test_msg_buf, "Test case: dest_w = %d, dest_h = %d, dest_stride = %d, unalign_byte = %d, bg_opa = %d, fg_opa = %d, count = %d    \n", test_case->dest_w, test_case->dest_h, test_case->dest_stride, test_case->unalign_byte, test_case->bg_opa, test_case->fg_opa, test_case->test_combinations_count);
+    sprintf(test_msg_buf, "Test case: dest_w = %d, dest_h = %d, dest_stride = %d, unalign_byte = %d, bg_opa = %d, fg_opa = %d\n",
+            test_case->dest_w, test_case->dest_h, test_case->dest_stride, test_case->unalign_byte, test_case->bg_opa, test_case->fg_opa);
 
     switch (test_case->color_format) {
-    case LV_COLOR_FORMAT_ARGB8888: {
+    case LV_COLOR_FORMAT_ARGB8888:
         test_eval_32bit_data(test_case);
         break;
-    }
-
-    case LV_COLOR_FORMAT_RGB565: {
+    case LV_COLOR_FORMAT_RGB565:
         test_eval_16bit_data(test_case);
         break;
-    }
-
     default:
         TEST_ASSERT_MESSAGE(false, "LV Color format not found");
+        break;
     }
 
     free(test_case->buf.p_asm_alloc);
@@ -303,29 +337,32 @@ static void fill_test_bufs(test_case_params_t *test_case)
     memset(dest_buf_asm, 0, total_buf_len * data_type_size);
     memset(dest_buf_ansi, 0, total_buf_len * data_type_size);
 
-    if (test_case->operation_type == OPERATION_FILL) {
-
+    switch (test_case->operation_type) {
+    case OPERATION_FILL:
         // Fill the actual part of the destination buffers with known values,
         // Values must be same, because of the stride
         for (int i = CANARY_BYTES; i < active_buf_len + CANARY_BYTES; i++) {
             dest_buf_asm[i * data_type_size] = (uint8_t)(i % 255);
             dest_buf_ansi[i * data_type_size] = (uint8_t)(i % 255);
         }
-
-    } else if (test_case->operation_type == OPERATION_FILL_WITH_OPA) {
-
-        lv_color32_t bg_color = {
-            .blue = 0xEF,
-            .green = 0xCD,
-            .red = 0xAB,
-            .alpha = test_case->bg_opa,
-        };
+        break;
+    case OPERATION_FILL_WITH_OPA:
+        // Fill the actual part of the destination buffers with set color value, but change opacity
+        // Convert color to color with OPA
+        lv_color32_t bg_color_argb8888 = lv_color_to_32(bg_color, test_case->bg_opa);
 
         // FOR ARGB8888 ONLY for now
         for (int i = CANARY_BYTES; i < active_buf_len + CANARY_BYTES; i++) {
-            ((lv_color32_t *)dest_buf_ansi)[i] = bg_color;
-            ((lv_color32_t *)dest_buf_asm)[i] = bg_color;
+            // Dynamic BG OPA
+            if (!test_case->static_bg_opa) {
+                bg_color_argb8888.alpha = (uint8_t)((i - CANARY_BYTES) % 255);
+            }
+            ((lv_color32_t *)dest_buf_ansi)[i] = bg_color_argb8888;
+            ((lv_color32_t *)dest_buf_asm)[i] = bg_color_argb8888;
         }
+        break;
+    default:
+        break;
     }
 
     // Shift array pointers by Canary Bytes amount
@@ -346,15 +383,6 @@ static void fill_test_bufs(test_case_params_t *test_case)
 
 }
 
-//static void print_error_buffer(test_case_params_t *test_case)
-//{
-//    printf("Output eval: \n");
-//    for (uint32_t i = 0; i < test_case->total_buf_len; i++) {
-//        printf("dest_buf[%"PRIi32"] %s ansi = %8"PRIx32" \t asm = %8"PRIx32" \n", i, ((i < 10) ? (" ") : ("")), ((uint32_t *)test_case->buf.p_ansi)[i], ((uint32_t *)test_case->buf.p_asm)[i]);
-//    }
-//    printf("\n\n");
-//}
-
 static void test_eval_32bit_data(test_case_params_t *test_case)
 {
     // Print results 32bit data
@@ -372,16 +400,6 @@ static void test_eval_32bit_data(test_case_params_t *test_case)
 
     // dest_buf_asm and dest_buf_ansi must be equal
     TEST_ASSERT_EQUAL_UINT32_ARRAY_MESSAGE((uint32_t *)test_case->buf.p_ansi + CANARY_BYTES, (uint32_t *)test_case->buf.p_asm + CANARY_BYTES, test_case->active_buf_len, test_msg_buf);
-
-    //for (int i = 0; i < test_case->active_buf_len; i++) {
-    //    if (((uint32_t *)test_case->buf.p_ansi)[CANARY_BYTES + i] != ((uint32_t *)test_case->buf.p_asm)[CANARY_BYTES + i]) {
-    //        printf("FAIL\n");
-    //        printf(test_msg_buf);
-    //        print_error_buffer(test_case);
-    //        break;
-    //    }
-    //}
-    ////TEST_ASSERT_EQUAL_UINT32_ARRAY_MESSAGE((uint32_t *)test_case->buf.p_ansi + CANARY_BYTES, (uint32_t *)test_case->buf.p_asm + CANARY_BYTES, test_case->active_buf_len, test_msg_buf);
 
     // Canary bytes area must stay 0
     TEST_ASSERT_EACH_EQUAL_UINT32_MESSAGE(0, (uint32_t *)test_case->buf.p_ansi + (test_case->total_buf_len - CANARY_BYTES), CANARY_BYTES, test_msg_buf);

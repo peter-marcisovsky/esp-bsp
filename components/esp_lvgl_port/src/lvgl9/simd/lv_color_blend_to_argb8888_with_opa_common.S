@@ -9,7 +9,10 @@
 
     .section .text
     .align  4
+    .literal_position
+    .literal .OPA_MASK, 0x00ffffff
     .global lv_color_blend_to_argb8888_with_opa_esp
+    .global .lv_color_blend_to_argb8888_esp_body
     .type   lv_color_blend_to_argb8888_with_opa_esp,@function
 
 // The function implements the following C code:
@@ -60,18 +63,29 @@ lv_color_blend_to_argb8888_with_opa_esp:
     s32i.n   a12,    a1,   16                   // cache.ratio
     movi     a6,     253                        // a6 = 253 = LV_OPA_MAX
 
-    .outer_loop:
+    // This condition depends solely on the FG, which does not change during the function call
+    // Branch if FG OPA (a9) lower than a6: 253 (LV_OPA_MAX)
+    bltu         a9,   a6,   _save_fg_if_fg_aplha_                                   // if (fg.alpha >= LV_OPA_MAX) {
+        // We can jump to simple fill                                                //   return fg;
+        j  .lv_color_blend_to_argb8888_esp_body                                      // }
+    _save_fg_if_fg_aplha_:
 
+    l32i.n      a15,   a3,   0                // load BG value from dest buffer
+    extui       a13,   a15,  24,   8          // a13 = BG OPA, extract BG OPA from background
+    bltui       a13,   3, _save_bg_if_fg_aplha_
+
+    // Branch if FG OPA (a9) is greater than or equal to 3
+    bgeui        a9,  3, _save_bg_if_fg_aplha_                                       // if (fg.alpha <= LV_OPA_MIN) {
+        // We dont need to save bg, because we did not modify it                     //   return bg;
+        // No modificaiton to the dest_buff is needed, we can return                 // }
+        movi.n   a2, 1                                  // return LV_RESULT_OK = 1
+        retw.n                                          // return
+    _save_bg_if_fg_aplha_:
+
+    .outer_loop:
         loopnez a4, ._main_loop
 
             l32i.n      a15,   a3,   0                // load BG value from dest buffer
-
-            // Branch if FG OPA (a9) lower than a6: 253 (LV_OPA_MAX)
-            bltu         a9,   a6,   _save_fg_if_fg_aplha                                   // if (fg.alpha >= LV_OPA_MAX) {
-                s32i.n      a10,  a3,  0            // Save FG (a10) to the dest buff       //   return fg;
-                j           _end_of_loop            // Jump to the end of the loop          // }
-            _save_fg_if_fg_aplha:
-
             extui       a13,   a15,  24,   8        // a13 = BG OPA, extract BG OPA from background
 
             // Branch if BG OPA (a13) is greater than or equal to 3 (LV_OPA_MIN + 1)
@@ -135,15 +149,14 @@ lv_color_blend_to_argb8888_with_opa_esp:
             movi     a14,   255                     // load 255 to a14
             sub	     a12,   a14,   a9               // a12 = 255 - FG OPA
             sub	     a11,   a14,   a13              // a11 = 255 - BG OPA
-            mul16u   a11,   a11,   a12              // a11 = (255 - FG OPA) * (255 - BG OPA)
-            srli     a11,   a11,   8                // a11 = a11 >> 8
-            sub      a11,   a14,   a11              // a11 = 255 - a11
+            mul16u   a8,    a11,   a12              // a8  = (255 - FG OPA) * (255 - BG OPA)
+            srli     a11,   a8,    8                // a11 = a8 >> 8
+            sub      a8,    a14,   a11              // a8 = 255 - a11
 
             mul16u   a12,   a14,   a9               // a12 = 255 * FG OPA
-            quou     a14,   a12,   a11              // a14 = a12 / a11
-
-            s32i.n   a11,   a1,    12               // a11 = save to cache.res_alpha
-            s32i.n   a14,   a1,    16               // a14 = save to cache.ratio
+            quou     a14,   a12,   a8               // a14 = a12 / a8
+            s8i      a8,    a1,    12               // a8 = save to cache.res_alpha
+            s8i      a14,   a1,    16               // a14 = save to cache.ratio
 
         _OPA_cache_equal:
 
@@ -157,36 +170,38 @@ lv_color_blend_to_argb8888_with_opa_esp:
         j _cahe_equal
 
             _cache_not_equal:
-            l32i.n    a9,    a1,   16               // a9 = load from cache.ratio (load FG OPA)
+            l8ui      a9,    a1,   16               // a9 = load from cache.ratio (load FG OPA)
             s32i.n    a10,   a1,   0                // a10 = save to cache.FG
             s32i.n    a15,   a1,   4                // a15 = save to cache.BG
 
             // Branch if FG OPA (a9) lower than a6: 253 (LV_OPA_MAX)                        // if (fg.alpha >= LV_OPA_MAX) {
             bltu        a9,  a6,   _save_fg_if_fg_aplha_in_mix_1                            //   fg.alpha = bg.alpha;
                 // FG OPA = BG OPA, return FG                                               //   return fg
-                l32i.n     a14,   a1,    12         // a14 = load cache.res_alpha           // }
+                l8ui       a14,   a1,    12         // a14 = load cache.res_alpha           // }
+                l32r       a12,   .OPA_MASK         // a12 = OPA_MASK
+                //movi       a12,   0x00ffffff        // a12 = Opa mask
                 slli       a14,   a14,   24         // a14 = res alpha saved << 24
-                movi       a12,   0x00ffffff        // a12 = Opa mask
                 and        a12,   a10,   a12        // a12 = FG AND Opa mask
                 or         a7,    a14,   a12        // a7  = FG.OPA = res_alpha saved
 
+                l8ui       a9,    a2,    0          // a9 - load back the original FG opacity
                 s32i.n     a7,   a1,    8           // a7 = save to cache.res
                 s32i.n     a7,   a3,    0           // Save FG (a7) to the dest buff
-                l8ui       a9,    a2,    0          // a9 - load back the original FG opacity
                 j          _end_of_loop             // Jump to the end of the loop
             _save_fg_if_fg_aplha_in_mix_1:
 
             // Branch if FG OPA (a9) is greater than or equal to 3                          // if (fg.alpha <= LV_OPA_MIN) {
             bgeui        a9,  3, _save_bg_if_fg_aplha_in_mix_1                              //   return bg;
-                l32i.n     a14,   a1,    12         // a14 = load cache.res_alpha           // }
+                l8ui       a14,   a1,    12         // a14 = load cache.res_alpha           // }
+                l32r       a12,   .OPA_MASK         // a12 = OPA_MASK
+                //movi       a12,   0x00ffffff        // a12 = Opa mask
                 slli       a14,   a14,   24         // a14 = res alpha saved << 24
-                movi       a12,   0x00ffffff        // a12 = Opa mask
                 and        a12,   a15,   a12        // a12 = BG AND Opa mask
                 or         a15,   a14,   a12        // BG.OPA = res_alpha saved
 
+                l8ui       a9,    a2,    0          // a9 - load back the original FG opacity
                 s32i.n     a15,   a1,    8          // a15 = save to cache.res
                 s32i.n     a15,   a3,    0          // Save background to the dest buff
-                l8ui       a9,    a2,    0          // a9 - load back the original FG opacity
                 j          _end_of_loop             // Jump to the end of the loop
             _save_bg_if_fg_aplha_in_mix_1:
 
@@ -197,7 +212,7 @@ lv_color_blend_to_argb8888_with_opa_esp:
             // a8, a12, a14 - working regs
             color_mix32 a10, a15, a9, a14, a8, a12, a7
 
-            l32i.n   a14,   a1,    12               // a14 = load cache.res_alpha
+            l8ui     a14,   a1,    12               // a14 = load cache.res_alpha
             slli     a14,   a14,   24               // a14 = res alpha saved << 24
 
             // Compose the final color
@@ -219,8 +234,8 @@ lv_color_blend_to_argb8888_with_opa_esp:
         ._main_loop:
 
         l32i.n  a7,  a1,  20                        // a7 = load dest_stride from cache
-        add     a3,  a3,  a7                        // dest_buff + dest_stride
         addi.n  a5,  a5,  -1                        // decrease the outer loop
+        add     a3,  a3,  a7                        // dest_buff + dest_stride
 
     bnez a5, .outer_loop
 

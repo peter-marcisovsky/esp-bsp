@@ -31,19 +31,22 @@ static lv_color_t test_color = {
 esp_err_t get_blend_params(blend_params_t **blend_params_ret, test_area_t **area_ret)
 {
     LV_FILL_CHECK((s_area != NULL || s_blend_params != NULL), ESP_ERR_INVALID_STATE);
-
     *blend_params_ret = s_blend_params;
     *area_ret = s_area;
-
     return ESP_OK;
 }
 
 esp_err_t set_color_format(blend_params_t *blend_params, lv_color_format_t color_format)
 {
     LV_FILL_CHECK(blend_params != NULL, ESP_ERR_INVALID_STATE);
-
     blend_params->draw_unit.target_layer->color_format = color_format;
+    return ESP_OK;
+}
 
+esp_err_t set_opacity(blend_params_t *blend_params, lv_opa_t opa)
+{
+    LV_FILL_CHECK(blend_params != NULL, ESP_ERR_INVALID_STATE);
+    blend_params->blend_dsc.opa = opa;
     return ESP_OK;
 }
 

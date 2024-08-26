@@ -19,8 +19,6 @@
 extern "C" {
 #endif
 
-#define DBG_PRINT_OUTPUT false
-
 /*********************
  *      INCLUDES
  *********************/
@@ -68,36 +66,15 @@ static inline lv_color_t LV_ATTRIBUTE_FAST_MEM lv_color_mix(lv_color_t c1, lv_co
 static inline lv_color32_t lv_color_mix32(lv_color32_t fg, lv_color32_t bg)
 {
     if (fg.alpha >= LV_OPA_MAX) {
-#if DBG_PRINT_OUTPUT
-        printf("fg.opa = %d\n", fg.alpha);
-        printf("bg.opa = %d\n", bg.alpha);
         fg.alpha = bg.alpha;
-        printf("lv_color_mix32_1\n");
-#endif
         return fg;
     }
     if (fg.alpha <= LV_OPA_MIN) {
-#if DBG_PRINT_OUTPUT
-        printf("lv_color_mix32_2\n");
-#endif
         return bg;
     }
-
-#if DBG_PRINT_OUTPUT
-    printf("lv_color_mix32_3\n");
-    printf("FG A = %d\n", fg.alpha);
-    printf("FG R = %d   G = %d   B = %d\n", fg.red, fg.green, fg.blue);
-    printf("BG R = %d   G = %d   B = %d\n", bg.red, bg.green, bg.blue);
-#endif
-
     bg.red = (uint32_t)((uint32_t)fg.red * fg.alpha + (uint32_t)bg.red * (255 - fg.alpha)) >> 8;
     bg.green = (uint32_t)((uint32_t)fg.green * fg.alpha + (uint32_t)bg.green * (255 - fg.alpha)) >> 8;
     bg.blue = (uint32_t)((uint32_t)fg.blue * fg.alpha + (uint32_t)bg.blue * (255 - fg.alpha)) >> 8;
-
-#if DBG_PRINT_OUTPUT
-    printf("BG R = %d   G = %d   B = %d\n", bg.red, bg.green, bg.blue);
-#endif
-
     return bg;
 }
 

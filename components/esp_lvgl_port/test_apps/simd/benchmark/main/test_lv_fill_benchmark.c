@@ -18,11 +18,12 @@
 #define HEIGHT 128
 #define STRIDE WIDTH
 #define UNALIGN_BYTES 1
-#define BENCHMARK_CYCLES 1000
+#define BENCHMARK_CYCLES 750
 
 // ------------------------------------------------- Macros and Types --------------------------------------------------
 
 static const char *TAG_LV_FILL_BENCH = "LV Fill Benchmark";
+static lv_color_t bg_color = { .blue = 0xEF, .green = 0xCD, .red = 0xAB, };
 
 static blend_params_t *s_blend_params = NULL;
 static test_area_t *s_area = NULL;
@@ -79,16 +80,47 @@ TEST_CASE("LV Fill benchmark ARGB8888", "[lv_fill][ARGB8888]")
         .cc_height = HEIGHT - 1,
         .cc_width = WIDTH - 1,
         .benchmark_cycles = BENCHMARK_CYCLES,
-        .array_align16 = (void *)dest_array_align16,
-        .array_align1 = (void *)dest_array_align1,
+        .dest_array = (void *)dest_array_align16,
+        .dest_array_cc = (void *)dest_array_align1,
+        .dynamic_bg_opa = false,
+        .operation_type = OPERATION_FILL,
     };
 
     TEST_ASSERT_EQUAL(ESP_OK, get_blend_params(&s_blend_params, &s_area));
     TEST_ASSERT_EQUAL(ESP_OK, set_color_format(s_blend_params, LV_COLOR_FORMAT_ARGB8888));
+    TEST_ASSERT_EQUAL(ESP_OK, set_opacity(s_blend_params, LV_OPA_MAX));
 
     ESP_LOGI(TAG_LV_FILL_BENCH, "running test for ARGB8888 color format");
     lv_fill_benchmark_init(&test_params);
     free(dest_array_align16);
+}
+
+TEST_CASE("LV Fill with OPA benchmark ARGB8888", "[lv_fill][opa][ARGB8888]")
+{
+    uint32_t *dest_array  = (uint32_t *)memalign(16, STRIDE * HEIGHT * sizeof(uint32_t) + (UNALIGN_BYTES * sizeof(uint8_t)));
+    memset((void *)dest_array, 0, STRIDE * HEIGHT);  // set array to zero, also BG OPA will be zero
+    TEST_ASSERT_NOT_EQUAL(NULL, dest_array);
+
+    bench_test_params_t test_params = {
+        .height = HEIGHT,
+        .width = WIDTH,
+        .stride = STRIDE,
+        .cc_height = HEIGHT,
+        .cc_width = WIDTH,
+        .benchmark_cycles = BENCHMARK_CYCLES,
+        .dest_array = (void *)dest_array,
+        .dest_array_cc = (void *)dest_array,    // Array testing corner case must be modified for each test run separately
+        .dynamic_bg_opa = false,
+        .operation_type = OPERATION_FILL_WITH_OPA
+    };
+
+    TEST_ASSERT_EQUAL(ESP_OK, get_blend_params(&s_blend_params, &s_area));
+    TEST_ASSERT_EQUAL(ESP_OK, set_color_format(s_blend_params, LV_COLOR_FORMAT_ARGB8888));
+    TEST_ASSERT_EQUAL(ESP_OK, set_opacity(s_blend_params, LV_OPA_10));
+
+    ESP_LOGI(TAG_LV_FILL_BENCH, "running test for ARGB8888 color format");
+    lv_fill_benchmark_init(&test_params);
+    free(dest_array);
 }
 
 TEST_CASE("LV Fill benchmark RGB565", "[lv_fill][RGB565]")
@@ -106,12 +138,15 @@ TEST_CASE("LV Fill benchmark RGB565", "[lv_fill][RGB565]")
         .cc_height = HEIGHT - 1,
         .cc_width = WIDTH - 1,
         .benchmark_cycles = BENCHMARK_CYCLES,
-        .array_align16 = (void *)dest_array_align16,
-        .array_align1 = (void *)dest_array_align1,
+        .dest_array = (void *)dest_array_align16,
+        .dest_array_cc = (void *)dest_array_align1,
+        .dynamic_bg_opa = false,
+        .operation_type = OPERATION_FILL
     };
 
     TEST_ASSERT_EQUAL(ESP_OK, get_blend_params(&s_blend_params, &s_area));
     TEST_ASSERT_EQUAL(ESP_OK, set_color_format(s_blend_params, LV_COLOR_FORMAT_RGB565));
+    TEST_ASSERT_EQUAL(ESP_OK, set_opacity(s_blend_params, LV_OPA_MAX));
 
     ESP_LOGI(TAG_LV_FILL_BENCH, "running test for RGB565 color format");
     lv_fill_benchmark_init(&test_params);
@@ -127,14 +162,13 @@ static void lv_fill_benchmark_init(bench_test_params_t *test_params)
     lv_area_set(&s_area->blend, 0, 0, test_params->width - 1,  test_params->height - 1);
 
     s_blend_params->draw_unit.target_layer->buf_area = s_area->buf;
-    s_blend_params->draw_unit.target_layer->draw_buf->data = (void *)test_params->array_align16;
+    s_blend_params->draw_unit.target_layer->draw_buf->data = (void *)test_params->dest_array;
 
     // Run benchmark with the most ideal input parameters
-    // Dest array is 16 byte aligned, dest_w and dest_h are dividable by 4
     float cycles = lv_fill_benchmark_run(test_params);     // Call LVGL API
     float per_sample = cycles / ((float)(WIDTH * STRIDE));
 
-    ESP_LOGI(TAG_LV_FILL_BENCH, " ideal case: %.3f cycles for %dx%d matrix, %.3f cycles per sample", cycles, WIDTH, STRIDE, per_sample);
+    ESP_LOGI(TAG_LV_FILL_BENCH, "ideal case: %.3f cycles for %dx%d matrix, %.3f cycles per sample", cycles, WIDTH, STRIDE, per_sample);
 
     // Update all LV areas with worst cases (Corner cases)
     lv_area_set(&s_area->clip,  0, 0, test_params->stride - 1, test_params->cc_height - 1);
@@ -142,14 +176,44 @@ static void lv_fill_benchmark_init(bench_test_params_t *test_params)
     lv_area_set(&s_area->blend, 0, 0, test_params->cc_width - 1,  test_params->cc_height - 1);
 
     s_blend_params->draw_unit.target_layer->buf_area = s_area->buf;
-    s_blend_params->draw_unit.target_layer->draw_buf->data = (void *)test_params->array_align1;
+    s_blend_params->draw_unit.target_layer->draw_buf->data = (void *)test_params->dest_array_cc;
+
+    if (test_params->operation_type != OPERATION_FILL) {    // Don't use dynamic OPA background for simple fill
+        test_params->dynamic_bg_opa = true;
+    }
 
     // Run benchmark with the corner case parameters
-    // Dest array is 1 byte aligned, dest_w and dest_h are not dividable by 4
     cycles = lv_fill_benchmark_run(test_params);           // Call LVGL API
     per_sample = cycles / ((float)(WIDTH * STRIDE));
 
-    ESP_LOGI(TAG_LV_FILL_BENCH, " common case: %.3f cycles for %dx%d matrix, %.3f cycles per sample", cycles, WIDTH, STRIDE, per_sample);
+    ESP_LOGI(TAG_LV_FILL_BENCH, "common case: %.3f cycles for %dx%d matrix, %.3f cycles per sample", cycles, WIDTH, STRIDE, per_sample);
+}
+
+static void reinit_dest_array(bench_test_params_t *test_params)
+{
+    switch (test_params->operation_type) {
+    case OPERATION_FILL:
+        // No need to refill dest_array for Simple fill test
+        break;
+    case OPERATION_FILL_WITH_OPA:
+        // We need to re initialize dest_array, since the previous run of the benchmark test has modified the dest_array
+        // For dynamic background opacity, we fill each sample with different opacity to induce the worst case - being
+        // most demanding for processing power
+        if (test_params->dynamic_bg_opa) {
+            lv_color32_t bg_color_argb8888 = lv_color_to_32(bg_color, LV_OPA_50);
+            for (int i = 0; i < STRIDE * HEIGHT; i++) {
+                // Dynamic BG OPA
+                bg_color_argb8888.alpha = (uint8_t)(i % 255);
+                ((lv_color32_t *)test_params->dest_array)[i] = bg_color_argb8888;
+            }
+        } else {
+            // For static background, we set each sample with constant opacity level
+            memset(test_params->dest_array, 0, STRIDE * HEIGHT);
+        }
+        break;
+    default:
+        break;
+    }
 }
 
 static float lv_fill_benchmark_run(bench_test_params_t *test_params)
@@ -157,13 +221,20 @@ static float lv_fill_benchmark_run(bench_test_params_t *test_params)
     // Call the DUT function for the first time to init the benchmark test
     lv_draw_sw_blend(&s_blend_params->draw_unit, &s_blend_params->blend_dsc);
 
-    const unsigned int start_b = xthal_get_ccount();
+    uint64_t total_cpu_count = 0;
     for (int i = 0; i < test_params->benchmark_cycles; i++) {
-        lv_draw_sw_blend(&s_blend_params->draw_unit, &s_blend_params->blend_dsc);
-    }
-    const unsigned int end_b = xthal_get_ccount();
 
-    const float total_b = end_b - start_b;
-    const float cycles = total_b / (test_params->benchmark_cycles);
-    return cycles;
+        // Re-initialize destination array before each test run
+        reinit_dest_array(test_params);
+
+        // We must count cycles, only during the DUT function execution
+        const unsigned int start_cpu_count = xthal_get_ccount();                    // Start counting CPU cycles
+        lv_draw_sw_blend(&s_blend_params->draw_unit, &s_blend_params->blend_dsc);   // run DUT function
+        const unsigned int end_cpu_count = xthal_get_ccount();                      // Stop counting CPU cycles
+        total_cpu_count += (uint64_t)(end_cpu_count - start_cpu_count);             // Count total CPU cycles
+    }
+
+    printf("total_cpu_count %lld\n", total_cpu_count);
+
+    return ((float)total_cpu_count) / ((float)test_params->benchmark_cycles);
 }

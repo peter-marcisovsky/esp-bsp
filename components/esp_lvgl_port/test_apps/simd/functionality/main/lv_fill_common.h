@@ -17,10 +17,22 @@ extern "C" {
 
 // ------------------------------------------------- Macros and Types --------------------------------------------------
 
+/**
+ * @brief Type of blend DUT function
+ */
 typedef enum {
     OPERATION_FILL,
     OPERATION_FILL_WITH_OPA,
 } blend_operation_t;
+
+/**
+ * @brief Opacity parameters
+ */
+typedef struct {
+    unsigned int min;                       // Minimum opacity
+    unsigned int max;                       // Maximum opacity
+    unsigned int step;                      // Opacity step
+} opa_matrix_params_t;
 
 /**
  * @brief Functionality test combinations
@@ -34,10 +46,8 @@ typedef struct {
     unsigned int max_unalign_byte;          // Maximum amount of unaligned bytes of the test array
     unsigned int unalign_step;              // Increment step in bytes unalignment of the test array
     unsigned int dest_stride_step;          // Increment step in destination stride of the test array
-    lv_opa_t min_bg_opa;                    // Minimum background opacity
-    lv_opa_t min_fg_opa;                    // Minimum foreground opacity
-    unsigned int bg_opa_step_percent;       // Increment step for background opacity in %
-    unsigned int fg_opa_step_percent;       // Increment step for foreground opacity in %
+    opa_matrix_params_t bg_opa;             // Background opacity parameters
+    opa_matrix_params_t fg_opa;             // Foreground opacity parameters
     unsigned int test_combinations_count;   // Count of fest combinations
 } test_matrix_params_t;
 
@@ -62,8 +72,8 @@ typedef struct {
     unsigned int unalign_byte;                              // Destination buffer memory unalignment
     lv_opa_t bg_opa;                                        // Background opacity
     lv_opa_t fg_opa;                                        // Foreground opacity
+    bool static_bg_opa;                                     // Static or dynamic background opacity
     blend_operation_t operation_type;                       // Type of fundamental blend operation
-    unsigned int test_combinations_count;   // Count of fest combinations
 } test_case_params_t;
 
 #ifdef __cplusplus

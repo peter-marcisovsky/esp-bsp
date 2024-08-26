@@ -9,9 +9,9 @@ if(CONFIG_IDF_TARGET_ESP32 OR CONFIG_IDF_TARGET_ESP32S3)
         file(GLOB_RECURSE ASM_SOURCES ${PORT_PATH}/simd/*_esp32.S)      # Select only esp32 related files
     endif()
 
-    file(GLOB_RECURSE MACROS ${PORT_PATH}/simd/*_macro.S)
-    list(APPEND ASM_SOURCES ${MACROS})
-
+    file(GLOB_RECURSE ASM_COMMON ${PORT_PATH}/simd/*_common.S           # Append common assembly src files
+                                 ${PORT_PATH}/simd/*_macro.S)           # Append assembly macros
+    list(APPEND ASM_SOURCES ${ASM_COMMON})
 else()
     message(WARNING "This test app is intended only for esp32 and esp32s3")
 endif()

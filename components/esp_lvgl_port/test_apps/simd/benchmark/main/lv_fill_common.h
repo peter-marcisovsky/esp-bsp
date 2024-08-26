@@ -34,6 +34,14 @@ typedef struct {
 } blend_params_t;
 
 /**
+ * @brief Type of blend DUT function
+ */
+typedef enum {
+    OPERATION_FILL,
+    OPERATION_FILL_WITH_OPA,
+} blend_operation_t;
+
+/**
  * @brief Benchmark test parameters
  */
 typedef struct {
@@ -43,8 +51,10 @@ typedef struct {
     unsigned int cc_height;                 // Corner case test array height
     unsigned int cc_width;                  // Corner case test array width
     unsigned int benchmark_cycles;          // Count of benchmark cycles
-    void *array_align16;                    // test array with 16 byte alignment - testing most ideal case
-    void *array_align1;                     // test array with 1 byte alignment - testing wort case
+    void *dest_array;                       // destination array for testing most ideal case
+    void *dest_array_cc;                    // destination array for testing wort case
+    bool dynamic_bg_opa;                    // Use either static or dynamic background OPA
+    blend_operation_t operation_type;       // LVGL operation type
 } bench_test_params_t;
 
 /**
@@ -72,6 +82,20 @@ esp_err_t get_blend_params(blend_params_t **blend_params_ret, test_area_t **area
  * @retval ESP_INVALID_STATE: blend stuctures have not been initialized
  */
 esp_err_t set_color_format(blend_params_t *blend_params, lv_color_format_t color_format);
+
+/**
+ * @brief Set foreground opacity
+ *
+ * @note init_blend_params() must be called before to init the structures
+ *
+ * @param[out] blend_params: pointer to strucure needed to run sw blend API from LVGL
+ * @param[out] opa: opacity
+ *
+ * @retval ESP_OK: opacity set successfully
+ * @retval ESP_INVALID_STATE: blend stuctures have not been initialized
+ */
+esp_err_t set_opacity(blend_params_t *blend_params, lv_opa_t opa);
+
 
 /**
  * @brief Init parameters for blending LVGL functions
