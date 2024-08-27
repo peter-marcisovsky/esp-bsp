@@ -63,42 +63,86 @@ lv_color_blend_to_rgb565_esp:
     and     a10,    a10,    a13
     or      a10,    a10,    a12                 // a10 = 32-bit color (16bit + (16bit << 16))
 
-    srli    a9,    a4,   3                      // a9 - loop_len = dest_w / 8
+    movi.n  a8,    0x3                          // a8 = 0x3, dest_buff align mask
     sub     a6,    a6,   a11                    // dest_stride = dest_stride - dest_w_bytes
+
+    // cache init
+    // Prepare main loop length and dest_w_bytes
+    srli     a9,     a4,    4                    // a9 = loop_len = dest_w / 8, calculate main loop_len for original dest_w
+    slli     a11,    a4,    1                    // a11 = dest_w_bytes = sizeof(uint16_t) * dest_w
+    addi     a4,     a4,   -1                    // a4-- (decrement a4)
+    s32i.n   a9,     a1,    0                    // cache.orig.loop_len
+    s32i.n   a11,    a1,    4                    // cache.orig.dest_w_bytes
+
+    // Prepare decreased main loop length and dest_w_bytes
+    srli     a9,     a4,    4                    // a9 = loop_len = dest_w / 8, calculate main loop_len for dest_w - 1
+    slli     a11,    a4,    1                    // a11 = dest_w_bytes = sizeof(uint16_t) * (dest_w - 1)
+    s32i.n   a9,     a1,    8                    // cache.decr.loop_len
+    s32i.n   a11,    a1,    12                   // cache.decr.dest_w_bytes
+    and      a7,     a8,    a3                   // a7 = dest_buff AND 0x3 (chck if the address is 4-byte aligned)
 
     .outer_loop:
 
+        // Check if the des_buff is 2-byte aligned
+        beqz  a7, _dest_buff_2_byte_aligned      // branch if a7 is equal to zero
+            s16i        a12,  a3,   0            // save 16 bits from 16-bit color a12 to dest_buff a3, offset 0
+            l32i.n      a9,   a1,   8            // a9  = load cache.decr.loop_len
+            l32i.n      a11,  a1,   12           // a11 = load cache.decr.dest_w_bytes
+            addi.n      a3,   a3,   2            // increment dest_buff pointer by 2
+            j           _dest_buff_unaligned
+        _dest_buff_2_byte_aligned:
+
+        l32i.n      a9,   a1,   0                // a11 = load cache.orig.loop_len
+        l32i.n      a11,  a1,   4                // a11 = load cache.orig.dest_w_bytes
+
+        _dest_buff_unaligned:
+
         // Run main loop which sets 16 bytes in one loop run
         loopnez a9, ._main_loop
-            s32i.n      a10,  a3,  0                    // save 32 bits from a10 to dest_buff a3
-            s32i.n      a10,  a3,  4                    // save 32 bits from a10 to dest_buff a3
-            s32i.n      a10,  a3,  8                    // save 32 bits from a10 to dest_buff a3
-            s32i.n      a10,  a3,  12                   // save 32 bits from a10 to dest_buff a3
-            addi.n      a3,   a3,  16                   // increment dest_buff pointer by 16 bytes
+            s32i.n      a10,  a3,  0                    // save 32 bits from 32-bit color a10 to dest_buff a3, offset 0
+            s32i.n      a10,  a3,  4                    // save 32 bits from 32-bit color a10 to dest_buff a3, offset 4
+            s32i.n      a10,  a3,  8                    // save 32 bits from 32-bit color a10 to dest_buff a3, offset 8
+            s32i.n      a10,  a3,  12                   // save 32 bits from 32-bit color a10 to dest_buff a3, offset 12
+            s32i.n      a10,  a3,  16                   // save 32 bits from 32-bit color a10 to dest_buff a3, offset 16
+            s32i.n      a10,  a3,  20                   // save 32 bits from 32-bit color a10 to dest_buff a3, offset 20
+            s32i.n      a10,  a3,  24                   // save 32 bits from 32-bit color a10 to dest_buff a3, offset 24
+            s32i.n      a10,  a3,  28                   // save 32 bits from 32-bit color a10 to dest_buff a3, offset 28
+            addi.n      a3,   a3,  32                   // increment dest_buff pointer by 32
         ._main_loop:
+
+        // Finish the remaining bytes out of the loop
+        // Check modulo 8 of the dest_w_bytes, if - then set 16 bytes
+        bbci a11, 4, _mod_16_check                      // branch if 2-nd bit of dest_w_bytes is clear
+            s32i.n      a10,  a3,  0                    // save 32 bits from 32-bit color a10 to dest_buff a3, offset 0
+            s32i.n      a10,  a3,  4                    // save 32 bits from 32-bit color a10 to dest_buff a3, offset 4
+            s32i.n      a10,  a3,  8                    // save 32 bits from 32-bit color a10 to dest_buff a3, offset 8
+            s32i.n      a10,  a3,  12                   // save 32 bits from 32-bit color a10 to dest_buff a3, offset 12
+            addi.n      a3,   a3,  16                   // increment dest_buff pointer by 16
+        _mod_16_check:
 
         // Finish the remaining bytes out of the loop
         // Check modulo 8 of the dest_w_bytes, if - then set 8 bytes
         bbci a11, 3, _mod_8_check                       // branch if 2-nd bit of dest_w_bytes is clear
-            s32i.n      a10,  a3,  0                    // save 32 bits from a10 to dest_buff a3, offset 0 bytes
-            s32i.n      a10,  a3,  4                    // save 32 bits from a10 to dest_buff a3, offset 0 bytes
+            s32i.n      a10,  a3,  0                    // save 32 bits from 32-bit color a10 to dest_buff a3, offset 0
+            s32i.n      a10,  a3,  4                    // save 32 bits from 32-bit color a10 to dest_buff a3, offset 4
             addi.n      a3,   a3,  8                    // increment dest_buff pointer by 8 bytes
         _mod_8_check:
 
         // Check modulo 4 of the dest_w_bytes, if - then set 4 bytes
         bbci a11, 2, _mod_4_check                       // branch if 2-nd bit of dest_w_bytes is clear
-            s32i.n      a10,  a3,  0                    // save 32 bits from a10 to dest_buff a3, offset 0 bytes
-            addi.n      a3,   a3,  4                    // increment dest_buff pointer by 4 bytes
+            s32i.n      a10,  a3,  0                    // save 32 bits from 32-bit color a10 to dest_buff a3, offset 0
+            addi.n      a3,   a3,  4                    // increment dest_buff pointer by 4
         _mod_4_check:
 
-        // Check modulo 2 of the dest_w_bytes, if - then set 4 bytes
+        // Check modulo 2 of the dest_w_bytes, if - then set 2 bytes
         bbci a11, 1, _mod_2_check                       // branch if 1-st bit of dest_w_bytes is clear
-            s16i        a12,  a3,  0                    // save 16 bits from a12 to dest_buff a3, offset 0 bytes
+            s16i        a12,  a3,  0                    // save 16 bits from 16-bit color a12 to dest_buff a3, offset 0
             addi.n      a3,   a3,  2                    // increment dest_buff pointer by 2 bytes
         _mod_2_check:
 
-        add     a3,  a3,  a6                             // dest_buff + dest_stride
-        addi.n  a5,  a5,  -1                             // decrease the outer loop
+        add     a3,  a3,  a6                            // dest_buff + dest_stride
+        addi.n  a5,  a5,  -1                            // decrease the outer loop
+        and     a7,  a8,  a3                            // a7 = dest_buff AND 0x3 (chck if the address is 4-byte aligned)
     bnez a5, .outer_loop
 
     movi.n   a2, 1                                      // return LV_RESULT_OK = 1
