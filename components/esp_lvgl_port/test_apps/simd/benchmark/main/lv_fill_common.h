@@ -23,6 +23,7 @@ typedef struct {
     lv_area_t clip;         // Protective area around the blending area
     lv_area_t buf;          // Canvas (The whole display area)
     lv_area_t blend;        // Area where the blending happens
+    lv_area_t src;          // Source buffer area
 } test_area_t;
 
 /**
@@ -51,8 +52,10 @@ typedef struct {
     unsigned int cc_height;                 // Corner case test array height
     unsigned int cc_width;                  // Corner case test array width
     unsigned int benchmark_cycles;          // Count of benchmark cycles
-    void *dest_array;                       // destination array for testing most ideal case
-    void *dest_array_cc;                    // destination array for testing wort case
+    void *src_array;                        // Source array for testing most ideal case
+    void *dest_array;                       // Destination array for testing most ideal case
+    void *src_array_cc;                     // Source array for testing wort case
+    void *dest_array_cc;                    // Destination array for testing wort case
     bool dynamic_bg_opa;                    // Use either static or dynamic background OPA
     blend_operation_t operation_type;       // LVGL operation type
 } bench_test_params_t;
@@ -71,7 +74,7 @@ typedef struct {
 esp_err_t get_blend_params(blend_params_t **blend_params_ret, test_area_t **area_ret);
 
 /**
- * @brief Set color format
+ * @brief Set color format of the source buffer
  *
  * @note init_blend_params() must be called before to init the structures
  *
@@ -81,7 +84,20 @@ esp_err_t get_blend_params(blend_params_t **blend_params_ret, test_area_t **area
  * @retval ESP_OK: Color format set successfully
  * @retval ESP_INVALID_STATE: blend stuctures have not been initialized
  */
-esp_err_t set_color_format(blend_params_t *blend_params, lv_color_format_t color_format);
+esp_err_t set_src_color_format(blend_params_t *blend_params, lv_color_format_t color_format);
+
+/**
+ * @brief Set color format of the destination buffer
+ *
+ * @note init_blend_params() must be called before to init the structures
+ *
+ * @param[out] blend_params: pointer to strucure needed to run sw blend API from LVGL
+ * @param[out] color_format: LVGL color format
+ *
+ * @retval ESP_OK: Color format set successfully
+ * @retval ESP_INVALID_STATE: blend stuctures have not been initialized
+ */
+esp_err_t set_dest_color_format(blend_params_t *blend_params, lv_color_format_t color_format);
 
 /**
  * @brief Set foreground opacity

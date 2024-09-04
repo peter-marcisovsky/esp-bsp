@@ -80,14 +80,16 @@ TEST_CASE("LV Fill benchmark ARGB8888", "[lv_fill][ARGB8888]")
         .cc_height = HEIGHT - 1,
         .cc_width = WIDTH - 1,
         .benchmark_cycles = BENCHMARK_CYCLES,
+        .src_array = NULL,
         .dest_array = (void *)dest_array_align16,
+        .src_array_cc = NULL,
         .dest_array_cc = (void *)dest_array_align1,
         .dynamic_bg_opa = false,
         .operation_type = OPERATION_FILL,
     };
 
     TEST_ASSERT_EQUAL(ESP_OK, get_blend_params(&s_blend_params, &s_area));
-    TEST_ASSERT_EQUAL(ESP_OK, set_color_format(s_blend_params, LV_COLOR_FORMAT_ARGB8888));
+    TEST_ASSERT_EQUAL(ESP_OK, set_dest_color_format(s_blend_params, LV_COLOR_FORMAT_ARGB8888));
     TEST_ASSERT_EQUAL(ESP_OK, set_opacity(s_blend_params, LV_OPA_MAX));
 
     ESP_LOGI(TAG_LV_FILL_BENCH, "running test for ARGB8888 color format");
@@ -108,14 +110,16 @@ TEST_CASE("LV Fill with OPA benchmark ARGB8888", "[lv_fill][opa][ARGB8888]")
         .cc_height = HEIGHT,
         .cc_width = WIDTH,
         .benchmark_cycles = BENCHMARK_CYCLES,
+        .src_array = NULL,
         .dest_array = (void *)dest_array,
+        .src_array_cc = NULL,
         .dest_array_cc = (void *)dest_array,    // Array testing corner case must be modified for each test run separately
         .dynamic_bg_opa = false,
         .operation_type = OPERATION_FILL_WITH_OPA
     };
 
     TEST_ASSERT_EQUAL(ESP_OK, get_blend_params(&s_blend_params, &s_area));
-    TEST_ASSERT_EQUAL(ESP_OK, set_color_format(s_blend_params, LV_COLOR_FORMAT_ARGB8888));
+    TEST_ASSERT_EQUAL(ESP_OK, set_dest_color_format(s_blend_params, LV_COLOR_FORMAT_ARGB8888));
     TEST_ASSERT_EQUAL(ESP_OK, set_opacity(s_blend_params, LV_OPA_10));
 
     ESP_LOGI(TAG_LV_FILL_BENCH, "running test for ARGB8888 color format");
@@ -127,9 +131,14 @@ TEST_CASE("LV Fill benchmark RGB565", "[lv_fill][RGB565]")
 {
     uint16_t *dest_array_align16  = (uint16_t *)memalign(16, STRIDE * HEIGHT * sizeof(uint16_t) + (UNALIGN_BYTES * sizeof(uint8_t)));
     TEST_ASSERT_NOT_EQUAL(NULL, dest_array_align16);
+    printf("%p\n", dest_array_align16);
 
-    // Apply byte unalignment for the worst-case test scenario
-    uint16_t *dest_array_align1 = dest_array_align16 + (UNALIGN_BYTES * sizeof(uint8_t));
+    // Apply 1-byte unalignment for the worst-case test scenario
+    uint16_t *dest_array_align1 = ((uint16_t *)((uint8_t *)dest_array_align16 + UNALIGN_BYTES));
+
+    printf("%p\n", dest_array_align16);
+    printf("%p\n", dest_array_align1);
+
 
     bench_test_params_t test_params = {
         .height = HEIGHT,
@@ -138,45 +147,89 @@ TEST_CASE("LV Fill benchmark RGB565", "[lv_fill][RGB565]")
         .cc_height = HEIGHT - 1,
         .cc_width = WIDTH - 1,
         .benchmark_cycles = BENCHMARK_CYCLES,
+        .src_array = NULL,
         .dest_array = (void *)dest_array_align16,
+        .src_array_cc = NULL,
         .dest_array_cc = (void *)dest_array_align1,
         .dynamic_bg_opa = false,
         .operation_type = OPERATION_FILL
     };
 
     TEST_ASSERT_EQUAL(ESP_OK, get_blend_params(&s_blend_params, &s_area));
-    TEST_ASSERT_EQUAL(ESP_OK, set_color_format(s_blend_params, LV_COLOR_FORMAT_RGB565));
+    TEST_ASSERT_EQUAL(ESP_OK, set_dest_color_format(s_blend_params, LV_COLOR_FORMAT_RGB565));
     TEST_ASSERT_EQUAL(ESP_OK, set_opacity(s_blend_params, LV_OPA_MAX));
 
     ESP_LOGI(TAG_LV_FILL_BENCH, "running test for RGB565 color format");
     lv_fill_benchmark_init(&test_params);
     free(dest_array_align16);
 }
+
+TEST_CASE("LV Image benchmark RGB565", "[image][RGB565]")
+{
+    uint16_t *src_array_align16 = (uint16_t *)memalign(16, STRIDE * HEIGHT * sizeof(uint16_t) + (UNALIGN_BYTES * sizeof(uint8_t)));
+    uint16_t *dest_array_align16  = (uint16_t *)memalign(16, STRIDE * HEIGHT * sizeof(uint16_t) + (UNALIGN_BYTES * sizeof(uint8_t)));
+    TEST_ASSERT_NOT_EQUAL(NULL, dest_array_align16);
+
+    // Apply byte unalignment for the worst-case test scenario
+    uint16_t *dest_array_align1 = ((uint16_t *)((uint8_t *)dest_array_align16 + UNALIGN_BYTES));
+    uint16_t *src_array_align1 = ((uint16_t *)((uint8_t *)src_array_align16 + UNALIGN_BYTES));
+
+    bench_test_params_t test_params = {
+        .height = HEIGHT,
+        .width = WIDTH,
+        .stride = STRIDE,
+        .cc_height = HEIGHT - 1,
+        .cc_width = WIDTH - 1,
+        .benchmark_cycles = BENCHMARK_CYCLES,
+        .src_array = (void *)src_array_align16,
+        .dest_array = (void *)dest_array_align16,
+        .src_array_cc = (void *)src_array_align1,
+        .dest_array_cc = (void *)dest_array_align16,
+        .dynamic_bg_opa = false,
+        .operation_type = OPERATION_FILL        // TODO change
+    };
+
+    TEST_ASSERT_EQUAL(ESP_OK, get_blend_params(&s_blend_params, &s_area));
+    TEST_ASSERT_EQUAL(ESP_OK, set_src_color_format(s_blend_params, LV_COLOR_FORMAT_RGB565));
+    TEST_ASSERT_EQUAL(ESP_OK, set_dest_color_format(s_blend_params, LV_COLOR_FORMAT_RGB565));
+    TEST_ASSERT_EQUAL(ESP_OK, set_opacity(s_blend_params, LV_OPA_MAX));
+
+    ESP_LOGI(TAG_LV_FILL_BENCH, "running test for RGB565 color format");
+    lv_fill_benchmark_init(&test_params);
+    free(dest_array_align16);
+    free(src_array_align16);
+}
 // ------------------------------------------------ Static test functions ----------------------------------------------
 
 static void lv_fill_benchmark_init(bench_test_params_t *test_params)
 {
+    float cycles, per_sample;
     // Update all LV areas with most ideal test cases
     lv_area_set(&s_area->clip,  0, 0, test_params->stride - 1, test_params->height - 1);
     lv_area_set(&s_area->buf,   0, 0, test_params->stride - 1, test_params->height - 1);
     lv_area_set(&s_area->blend, 0, 0, test_params->width - 1,  test_params->height - 1);
+    lv_area_set(&s_area->src,   0, 0, test_params->width - 1,  test_params->height - 1);
 
     s_blend_params->draw_unit.target_layer->buf_area = s_area->buf;
     s_blend_params->draw_unit.target_layer->draw_buf->data = (void *)test_params->dest_array;
+    s_blend_params->blend_dsc.src_buf = (void *)test_params->src_array;
+    s_blend_params->blend_dsc.src_stride = test_params->stride * sizeof(uint16_t);
 
     // Run benchmark with the most ideal input parameters
-    float cycles = lv_fill_benchmark_run(test_params);     // Call LVGL API
-    float per_sample = cycles / ((float)(WIDTH * STRIDE));
+    cycles = lv_fill_benchmark_run(test_params);     // Call LVGL API
+    per_sample = cycles / ((float)(test_params->width * test_params->height));
 
-    ESP_LOGI(TAG_LV_FILL_BENCH, "ideal case: %.3f cycles for %dx%d matrix, %.3f cycles per sample", cycles, WIDTH, STRIDE, per_sample);
+    ESP_LOGI(TAG_LV_FILL_BENCH, "ideal case: %.3f cycles for %dx%d matrix, %.3f cycles per sample", cycles, test_params->width, test_params->height, per_sample);
 
     // Update all LV areas with worst cases (Corner cases)
     lv_area_set(&s_area->clip,  0, 0, test_params->stride - 1, test_params->cc_height - 1);
     lv_area_set(&s_area->buf,   0, 0, test_params->stride - 1, test_params->cc_height - 1);
     lv_area_set(&s_area->blend, 0, 0, test_params->cc_width - 1,  test_params->cc_height - 1);
+    lv_area_set(&s_area->src,   0, 0, test_params->cc_width - 1,  test_params->cc_height - 1);
 
     s_blend_params->draw_unit.target_layer->buf_area = s_area->buf;
     s_blend_params->draw_unit.target_layer->draw_buf->data = (void *)test_params->dest_array_cc;
+    s_blend_params->blend_dsc.src_buf = (void *)test_params->src_array_cc;
 
     if (test_params->operation_type != OPERATION_FILL) {    // Don't use dynamic OPA background for simple fill
         test_params->dynamic_bg_opa = true;
@@ -184,9 +237,9 @@ static void lv_fill_benchmark_init(bench_test_params_t *test_params)
 
     // Run benchmark with the corner case parameters
     cycles = lv_fill_benchmark_run(test_params);           // Call LVGL API
-    per_sample = cycles / ((float)(WIDTH * STRIDE));
+    per_sample = cycles / ((float)(test_params->cc_width * test_params->cc_height));
 
-    ESP_LOGI(TAG_LV_FILL_BENCH, "common case: %.3f cycles for %dx%d matrix, %.3f cycles per sample", cycles, WIDTH, STRIDE, per_sample);
+    ESP_LOGI(TAG_LV_FILL_BENCH, "common case: %.3f cycles for %dx%d matrix, %.3f cycles per sample", cycles, test_params->cc_width, test_params->cc_height, per_sample);
 }
 
 static void reinit_dest_array(bench_test_params_t *test_params)

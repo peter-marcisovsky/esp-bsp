@@ -37,6 +37,11 @@ extern "C" {
     _lv_color_blend_to_rgb565_esp(dsc)
 #endif
 
+#ifndef LV_DRAW_SW_RGB565_BLEND_NORMAL_TO_RGB565
+#define LV_DRAW_SW_RGB565_BLEND_NORMAL_TO_RGB565(dsc)  \
+    _lv_rgb565_blend_normal_to_rgb565_esp(dsc)
+#endif
+
 
 /**********************
  *      TYPEDEFS
@@ -59,7 +64,6 @@ typedef struct {
  **********************/
 
 extern int lv_color_blend_to_argb8888_esp(asm_dsc_t *asm_dsc);
-
 static inline lv_result_t _lv_color_blend_to_argb8888_esp(_lv_draw_sw_blend_fill_dsc_t *dsc)
 {
     asm_dsc_t asm_dsc = {
@@ -74,7 +78,6 @@ static inline lv_result_t _lv_color_blend_to_argb8888_esp(_lv_draw_sw_blend_fill
 }
 
 extern int lv_color_blend_to_argb8888_with_opa_esp(asm_dsc_t *asm_dsc);
-
 static inline lv_result_t _lv_color_blend_to_argb8888_with_opa_esp(_lv_draw_sw_blend_fill_dsc_t *dsc)
 {
     asm_dsc_t asm_dsc = {
@@ -90,7 +93,6 @@ static inline lv_result_t _lv_color_blend_to_argb8888_with_opa_esp(_lv_draw_sw_b
 }
 
 extern int lv_color_blend_to_rgb565_esp(asm_dsc_t *asm_dsc);
-
 static inline lv_result_t _lv_color_blend_to_rgb565_esp(_lv_draw_sw_blend_fill_dsc_t *dsc)
 {
     asm_dsc_t asm_dsc = {
@@ -102,6 +104,21 @@ static inline lv_result_t _lv_color_blend_to_rgb565_esp(_lv_draw_sw_blend_fill_d
     };
 
     return lv_color_blend_to_rgb565_esp(&asm_dsc);
+}
+
+extern int lv_rgb565_blend_normal_to_rgb565_esp(asm_dsc_t *asm_dsc);
+static inline lv_result_t _lv_rgb565_blend_normal_to_rgb565_esp(_lv_draw_sw_blend_image_dsc_t *dsc)
+{
+    asm_dsc_t asm_dsc = {
+        .dst_buf = dsc->dest_buf,
+        .dst_w = dsc->dest_w,
+        .dst_h = dsc->dest_h,
+        .dst_stride = dsc->dest_stride,
+        .src_buf = dsc->src_buf,
+        .src_stride = dsc->src_stride
+    };
+
+    return lv_rgb565_blend_normal_to_rgb565_esp(&asm_dsc);
 }
 
 #endif // CONFIG_LV_DRAW_SW_ASM_CUSTOM

@@ -36,10 +36,17 @@ esp_err_t get_blend_params(blend_params_t **blend_params_ret, test_area_t **area
     return ESP_OK;
 }
 
-esp_err_t set_color_format(blend_params_t *blend_params, lv_color_format_t color_format)
+esp_err_t set_dest_color_format(blend_params_t *blend_params, lv_color_format_t color_format)
 {
     LV_FILL_CHECK(blend_params != NULL, ESP_ERR_INVALID_STATE);
     blend_params->draw_unit.target_layer->color_format = color_format;
+    return ESP_OK;
+}
+
+esp_err_t set_src_color_format(blend_params_t *blend_params, lv_color_format_t color_format)
+{
+    LV_FILL_CHECK(blend_params != NULL, ESP_ERR_INVALID_STATE);
+    blend_params->blend_dsc.src_color_format = color_format;
     return ESP_OK;
 }
 
@@ -101,6 +108,7 @@ esp_err_t init_blend_params(void)
             .mask_buf = NULL,
             .mask_res = LV_DRAW_SW_MASK_RES_FULL_COVER,
             .mask_area = NULL,
+            .src_area = &p_test_area->src,
         },
         .draw_unit = {
             .target_layer = p_target_layer,

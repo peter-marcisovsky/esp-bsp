@@ -601,7 +601,9 @@ static void LV_ATTRIBUTE_FAST_MEM rgb565_image_blend(_lv_draw_sw_blend_image_dsc
 
     if (dsc->blend_mode == LV_BLEND_MODE_NORMAL) {
         if (mask_buf == NULL && opa >= LV_OPA_MAX) {
-            if (LV_RESULT_INVALID == LV_DRAW_SW_RGB565_BLEND_NORMAL_TO_RGB565(dsc)) {
+            if (dsc->use_asm) {
+                LV_DRAW_SW_RGB565_BLEND_NORMAL_TO_RGB565(dsc);
+            } else {
                 uint32_t line_in_bytes = w * 2;
                 for (y = 0; y < h; y++) {
                     memcpy(dest_buf_u16, src_buf_u16, line_in_bytes);   // lv_memcpy

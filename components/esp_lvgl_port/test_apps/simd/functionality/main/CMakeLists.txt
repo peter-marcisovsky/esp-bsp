@@ -19,7 +19,7 @@ endif()
 # Hard copy of LV files
 file(GLOB_RECURSE BLEND_SRCS lv_blend/src/*.c)
 
-idf_component_register(SRCS "test_app_main.c" "test_lv_fill_functionality.c" ${BLEND_SRCS} ${ASM_SOURCES}
+idf_component_register(SRCS "test_app_main.c" "test_lv_fill_functionality.c" "test_lv_image_functionality.c" ${BLEND_SRCS} ${ASM_SOURCES}
                       INCLUDE_DIRS "lv_blend/include" "../../../../include"
                       REQUIRES unity
                       WHOLE_ARCHIVE)
