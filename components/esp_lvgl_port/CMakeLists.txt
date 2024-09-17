@@ -91,9 +91,14 @@ if(lvgl_ver VERSION_GREATER_EQUAL "9.0.0")
         idf_component_get_property(lvgl_lib ${lvgl_name} COMPONENT_LIB)
         target_include_directories(${lvgl_lib} PRIVATE "include")
 
+        file(GLOB_RECURSE ASM_COMMON ${PORT_PATH}/simd/*_common.S           # Append common assembly src files
+                                     ${PORT_PATH}/simd/*_macro.S)           # Append assembly macros
+        list(APPEND ADD_SRCS ${ASM_COMMON})
+
         # Force link .S files
         set_property(TARGET ${COMPONENT_LIB} APPEND PROPERTY INTERFACE_LINK_LIBRARIES "-u lv_color_blend_to_argb8888_esp")
         set_property(TARGET ${COMPONENT_LIB} APPEND PROPERTY INTERFACE_LINK_LIBRARIES "-u lv_color_blend_to_rgb565_esp")
+        set_property(TARGET ${COMPONENT_LIB} APPEND PROPERTY INTERFACE_LINK_LIBRARIES "-u lv_color_blend_to_argb8888_with_opa_esp")
     endif()
 endif()
 
